@@ -1,0 +1,44 @@
+name: _example
+version: 0.1.0
+description: Example plugin demonstrating the AutoService plugin structure
+mode: mock
+installer: upstream
+
+mcp_tools:
+  - name: example_echo
+    description: Echo back the input message
+    handler: tools.echo
+    input_schema:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Message to echo back
+      required: [message]
+
+  - name: example_lookup
+    description: Look up a record from the example database
+    handler: tools.lookup
+    input_schema:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Record ID to look up
+      required: [id]
+
+http_routes:
+  - path: /api/example/echo
+    method: POST
+    handler: routes.post_echo
+
+  - path: /api/example/{record_id}
+    method: GET
+    handler: routes.get_record
+
+mock_server:
+  seed_data: mock_data/examples.json
+  database: .autoservice/database/_example/mock.db
+
+references:
+  - references/README.md

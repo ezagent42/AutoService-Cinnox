@@ -1,0 +1,22 @@
+{
+  "customers": [
+    {
+      "id": "EX-001",
+      "name": "Acme Corp",
+      "phone": "+1-555-0100",
+      "email": "contact@acme.example",
+      "type": "enterprise",
+      "company": "Acme Corporation",
+      "industry": "Manufacturing"
+    },
+    {
+      "id": "EX-002",
+      "name": "Globex Inc",
+      "phone": "+1-555-0200",
+      "email": "info@globex.example",
+      "type": "new",
+      "company": "Globex International",
+      "industry": "Technology"
+    }
+  ]
+}
