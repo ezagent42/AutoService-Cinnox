@@ -1,17 +1,11 @@
-# AutoService App Info
-# Identifies this installation and its customer context.
-# In upstream: installer is "upstream" with no customer.
-# In forks: installer is the customer name.
+# AutoService Installation Info
 
 name: AutoService
 version: 0.1.0
-installer: cinnox
-description: CINNOX/M800 AI customer service and sales bot
+description: AI-native customer service and sales bot framework
 
-# Plugins active in this installation
-plugins:
-  - cinnox
-
-# Skills added by this fork (beyond upstream defaults)
-fork_skills:
-  - cinnox-demo
+# Fork info
+fork:
+  customer: cinnox
+  description: CINNOX/M800 AI customer service and sales bot
+  contact: allen@h2os.cloud
