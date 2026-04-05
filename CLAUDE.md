@@ -32,8 +32,34 @@ docs/                # Design docs and plans
 
 ## Plugin System
 
-Each plugin lives in `plugins/<name>/` and can contain:
-- `skills/` — Plugin-specific skills (auto-discovered by `make setup`)
-- Config files for customer-specific API integrations
+Each plugin lives in `plugins/<name>/` with `plugin.yaml` declaring MCP tools + HTTP routes.
+Plugin tools are auto-loaded by `feishu/channel.py` (MCP) and `web/app.py` (HTTP).
+Plugin skills in `plugins/<name>/skills/` are symlinked by `make setup`.
 
-Run `make check` to verify plugin skill discovery.
+Run `make check` to verify plugin discovery.
+
+## Fork Workflow
+
+Each customer = one forked repo. The fork model:
+
+| Upstream (this repo) | Customer Fork |
+|----------------------|---------------|
+| Core framework (`autoservice/`, `feishu/`, `web/`) | Customer plugins (`plugins/{name}/`) |
+| Generic skills (`skills/customer-service/`, `sales-demo/`, etc.) | Customer-specific skills |
+| Plugin loader, channel server, web server | Customer data (`.autoservice/`, credentials) |
+
+### For fork maintainers
+
+**Contributing improvements back to upstream:** If you make changes that are not customer-specific (bug fixes, framework enhancements, generic skill improvements), create a PR targeting this repo. Rule of thumb: if the change benefits other customers, PR it upstream.
+
+**Syncing with upstream:**
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+## Credentials
+
+- `.feishu-credentials.json` — Feishu app credentials (gitignored)
+- `.autoservice/config.local.yaml` — Local API keys and endpoints (gitignored)
+- `.env` — Environment variables (gitignored)
