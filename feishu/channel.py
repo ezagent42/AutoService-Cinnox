@@ -88,6 +88,11 @@ _recent_sent: set[str] = set()
 _bot_open_id: str | None = None
 _msg_counter = {"sent": 0, "received": 0}
 _user_cache: dict[str, str] = {}  # open_id → display name
+_chat_modes: dict[str, str] = {}  # chat_id → "service" | "improve"
+
+
+def _get_mode(chat_id: str) -> str:
+    return _chat_modes.get(chat_id, "service")
 
 
 def _resolve_user(open_id: str) -> str:
@@ -166,6 +171,7 @@ async def inject_message(write_stream, msg: dict):
                 "message_id": msg["message_id"],
                 "user": msg.get("user", "unknown"),
                 "user_id": msg.get("user_id", ""),
+                "mode": msg.get("mode", "service"),
                 "ts": msg.get("ts", datetime.now(tz=timezone.utc).isoformat()),
             },
         },
@@ -252,6 +258,38 @@ def setup_feishu(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
 
         # Resolve user name and record in CRM
         display_name = _resolve_user(sender_id)
+
+        # Mode switching commands
+        text_stripped = text.strip().lower()
+        if text_stripped == "/improve":
+            _chat_modes[chat_id] = "improve"
+            threading.Thread(target=send_reaction, args=(msg_id, "DONE"), daemon=True).start()
+            msg = {
+                "text": "[MODE SWITCH] 已切换到 improve 模式。你现在可以：查看对话记录、管理行为规则、导入数据、分析对话质量。发送 /service 回到客服模式。",
+                "chat_id": chat_id,
+                "message_id": msg_id,
+                "user": display_name,
+                "user_id": sender_id,
+                "mode": "improve",
+                "ts": ts,
+            }
+            loop.call_soon_threadsafe(queue.put_nowait, msg)
+            return
+        elif text_stripped == "/service":
+            _chat_modes[chat_id] = "service"
+            threading.Thread(target=send_reaction, args=(msg_id, "DONE"), daemon=True).start()
+            msg = {
+                "text": "[MODE SWITCH] 已切换到 service 模式。现在以客服身份响应。",
+                "chat_id": chat_id,
+                "message_id": msg_id,
+                "user": display_name,
+                "user_id": sender_id,
+                "mode": "service",
+                "ts": ts,
+            }
+            loop.call_soon_threadsafe(queue.put_nowait, msg)
+            return
+
         try:
             from autoservice.crm import increment_message_count, log_message
             increment_message_count(sender_id)
@@ -265,6 +303,7 @@ def setup_feishu(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
             "message_id": msg_id,
             "user": display_name,
             "user_id": sender_id,
+            "mode": _get_mode(chat_id),
             "ts": ts,
         }
         log.info(f"[feishu] {display_name}: {text[:60]}")
