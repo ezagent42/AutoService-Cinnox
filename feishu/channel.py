@@ -87,6 +87,47 @@ _seen: set[str] = set()
 _recent_sent: set[str] = set()
 _bot_open_id: str | None = None
 _msg_counter = {"sent": 0, "received": 0}
+_user_cache: dict[str, str] = {}  # open_id → display name
+
+
+def _resolve_user(open_id: str) -> str:
+    """Look up user name from cache, Feishu API, or CRM. Returns 'Name (open_id)' or just open_id."""
+    if open_id in _user_cache:
+        return _user_cache[open_id]
+
+    name = ""
+    # Try Feishu contact API
+    try:
+        req = (
+            lark.BaseRequest.builder()
+            .http_method(lark.HttpMethod.GET)
+            .uri(f"/open-apis/contact/v3/users/{open_id}?user_id_type=open_id")
+            .token_types({lark.AccessTokenType.TENANT})
+            .build()
+        )
+        resp = feishu_client.request(req)
+        if resp.success():
+            user_data = json.loads(resp.raw.content).get("data", {}).get("user", {})
+            name = user_data.get("name", "")
+            # Upsert into CRM
+            try:
+                from autoservice.crm import upsert_contact
+                upsert_contact(
+                    open_id=open_id,
+                    name=name,
+                    phone=user_data.get("mobile", ""),
+                    email=user_data.get("email", ""),
+                    department=user_data.get("department_ids", [""])[0] if user_data.get("department_ids") else "",
+                    job_title=user_data.get("job_title", ""),
+                )
+            except Exception as e:
+                log.debug(f"CRM upsert error: {e}")
+    except Exception as e:
+        log.debug(f"User lookup error for {open_id}: {e}")
+
+    display = f"{name} ({open_id[:12]})" if name else open_id
+    _user_cache[open_id] = display
+    return display
 
 # -- Reaction helper (fire-and-forget ack) ------------------------------------
 
@@ -209,15 +250,24 @@ def setup_feishu(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
             except Exception:
                 pass
 
+        # Resolve user name and record in CRM
+        display_name = _resolve_user(sender_id)
+        try:
+            from autoservice.crm import increment_message_count, log_message
+            increment_message_count(sender_id)
+            log_message(sender_id, chat_id, "in", text, ts)
+        except Exception as e:
+            log.debug(f"CRM log error: {e}")
+
         msg = {
             "text": text,
             "chat_id": chat_id,
             "message_id": msg_id,
-            "user": sender_id,
+            "user": display_name,
             "user_id": sender_id,
             "ts": ts,
         }
-        log.info(f"[feishu] {sender_id[:20]}: {text[:60]}")
+        log.info(f"[feishu] {display_name}: {text[:60]}")
         loop.call_soon_threadsafe(queue.put_nowait, msg)
         _msg_counter["received"] += 1
 
@@ -395,6 +445,12 @@ def _handle_reply(args: dict) -> list[TextContent]:
         _recent_sent.add(resp.data.message_id)
         _msg_counter["sent"] += 1
         log.info(f"Reply to {chat_id}: {text[:50]}...")
+        # Log outgoing message to CRM
+        try:
+            from autoservice.crm import log_message
+            log_message("bot", chat_id, "out", text)
+        except Exception:
+            pass
         return [TextContent(type="text", text=f"Sent. message_id={resp.data.message_id}")]
     log.error(f"Reply failed: {resp.code} {resp.msg}")
     return [TextContent(type="text", text=f"Failed: {resp.code} {resp.msg}")]
