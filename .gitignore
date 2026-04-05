@@ -15,3 +15,7 @@ uv.lock
 
 # Claude Code
 .claude/worktrees/
+.claude/skills
+.claude/commands
+.claude/agents
+.claude/hooks
