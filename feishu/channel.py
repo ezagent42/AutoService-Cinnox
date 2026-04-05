@@ -244,7 +244,7 @@ def setup_feishu(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
     thread.start()
     log.info(f"Feishu WS thread started")
 
-    # Send startup message to all chats the bot is in
+    # Send startup message to all users in contact scope (expanding departments)
     def send_startup():
         time.sleep(4)
         try:
@@ -255,32 +255,51 @@ def setup_feishu(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
             )
             token = resp.json().get("tenant_access_token", "")
             headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-            # Query all chats the bot is a member of
-            chats_resp = _req.get(
-                "https://open.feishu.cn/open-apis/im/v1/chats?page_size=100",
-                headers=headers,
+
+            # Collect all user open_ids: direct users + department members
+            scope_resp = _req.get(
+                "https://open.feishu.cn/open-apis/contact/v3/scopes", headers=headers,
             )
-            chats = chats_resp.json().get("data", {}).get("items", [])
-            if not chats:
-                log.info("No chats found — startup msg skipped")
+            scope = scope_resp.json().get("data", {})
+            user_ids = set(scope.get("user_ids", []))
+
+            # Expand department members
+            for dept_id in scope.get("department_ids", []):
+                page_token = ""
+                while True:
+                    url = (f"https://open.feishu.cn/open-apis/contact/v3/users/find_by_department"
+                           f"?department_id={dept_id}&page_size=50&user_id_type=open_id")
+                    if page_token:
+                        url += f"&page_token={page_token}"
+                    dr = _req.get(url, headers=headers)
+                    dd = dr.json().get("data", {})
+                    for u in dd.get("items", []):
+                        uid = u.get("open_id", "")
+                        if uid:
+                            user_ids.add(uid)
+                    if not dd.get("has_more"):
+                        break
+                    page_token = dd.get("page_token", "")
+
+            if not user_ids:
+                log.info("No users in scope — startup msg skipped")
                 return
-            for chat in chats:
-                chat_id = chat.get("chat_id", "")
-                if not chat_id:
-                    continue
+
+            log.info(f"Sending startup to {len(user_ids)} user(s)")
+            for uid in user_ids:
                 body = (
                     CreateMessageRequestBody.builder()
-                    .receive_id(chat_id).msg_type("text")
+                    .receive_id(uid).msg_type("text")
                     .content(json.dumps({"text": "AutoService 已上线 ✅\n发送任意消息开始使用"}))
                     .build()
                 )
-                req = CreateMessageRequest.builder().receive_id_type("chat_id").request_body(body).build()
+                req = CreateMessageRequest.builder().receive_id_type("open_id").request_body(body).build()
                 resp_msg = feishu_client.im.v1.message.create(req)
                 if resp_msg.success():
                     _recent_sent.add(resp_msg.data.message_id)
-                    log.info(f"Startup msg sent to chat {chat_id[:20]}")
+                    log.info(f"Startup msg sent to {uid[:20]}")
                 else:
-                    log.warning(f"Startup msg failed for {chat_id[:20]}: {resp_msg.code} {resp_msg.msg}")
+                    log.debug(f"Startup msg skipped {uid[:20]}: {resp_msg.code}")
         except Exception as e:
             log.error(f"Startup msg error: {e}")
 
