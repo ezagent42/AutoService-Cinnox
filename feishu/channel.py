@@ -244,34 +244,43 @@ def setup_feishu(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
     thread.start()
     log.info(f"Feishu WS thread started")
 
-    # Send startup message
+    # Send startup message to all chats the bot is in
     def send_startup():
         time.sleep(4)
         try:
-            import requests
-            resp = requests.post(
+            import requests as _req
+            resp = _req.post(
                 "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
                 json={"app_id": APP_ID, "app_secret": APP_SECRET},
             )
             token = resp.json().get("tenant_access_token", "")
-            headers = {"Authorization": f"Bearer {token}"}
-            scope_resp = requests.get(
-                "https://open.feishu.cn/open-apis/contact/v3/scopes",
+            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+            # Query all chats the bot is a member of
+            chats_resp = _req.get(
+                "https://open.feishu.cn/open-apis/im/v1/chats?page_size=100",
                 headers=headers,
             )
-            user_ids = scope_resp.json().get("data", {}).get("user_ids", [])
-            for uid in user_ids:
+            chats = chats_resp.json().get("data", {}).get("items", [])
+            if not chats:
+                log.info("No chats found — startup msg skipped")
+                return
+            for chat in chats:
+                chat_id = chat.get("chat_id", "")
+                if not chat_id:
+                    continue
                 body = (
                     CreateMessageRequestBody.builder()
-                    .receive_id(uid).msg_type("text")
-                    .content(json.dumps({"text": "AutoService \u5df2\u4e0a\u7ebf \u2705\n\u53d1\u9001\u4efb\u610f\u6d88\u606f\u5f00\u59cb\u4f7f\u7528"}))
+                    .receive_id(chat_id).msg_type("text")
+                    .content(json.dumps({"text": "AutoService 已上线 ✅\n发送任意消息开始使用"}))
                     .build()
                 )
-                req = CreateMessageRequest.builder().receive_id_type("open_id").request_body(body).build()
+                req = CreateMessageRequest.builder().receive_id_type("chat_id").request_body(body).build()
                 resp_msg = feishu_client.im.v1.message.create(req)
                 if resp_msg.success():
                     _recent_sent.add(resp_msg.data.message_id)
-                    log.info(f"Startup msg sent to {uid[:20]}")
+                    log.info(f"Startup msg sent to chat {chat_id[:20]}")
+                else:
+                    log.warning(f"Startup msg failed for {chat_id[:20]}: {resp_msg.code} {resp_msg.msg}")
         except Exception as e:
             log.error(f"Startup msg error: {e}")
 
