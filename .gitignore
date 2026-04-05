@@ -15,3 +15,6 @@ uv.lock
 
 # Claude Code
 .claude/worktrees/
+
+# Fork staging (not part of upstream)
+_cinnox_fork/
