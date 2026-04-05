@@ -76,7 +76,7 @@ gh pr create --repo ezagent42/AutoService --base main --head allenwoods:fix/impr
 ```bash
 git fetch upstream
 git merge upstream/main
-# Resolve any conflicts (typically only in .autoservice-info.yaml)
+# Resolve any conflicts (typically only in .autoservice-info.yaml or CLAUDE.md)
 ```
 
 ## Credentials
