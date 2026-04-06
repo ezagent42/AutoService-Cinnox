@@ -115,8 +115,8 @@ async def lifespan(app: FastAPI):
 
     # Discover plugins and mount HTTP routes
     try:
-        from autoservice.plugin_loader import discover_plugins
-        plugins = discover_plugins(ROOT / "plugins")
+        from autoservice.plugin_loader import discover
+        plugins = discover(ROOT / "plugins")
         for plugin in plugins:
             for route in plugin.routes:
                 method = route.method.upper()
