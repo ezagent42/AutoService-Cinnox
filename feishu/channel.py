@@ -36,13 +36,16 @@ INSTRUCTIONS_PATH = Path(__file__).parent / "channel-instructions.md"
 
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="[autoservice-channel] %(asctime)s %(levelname)s %(message)s",
     handlers=[
         logging.FileHandler(str(LOG_FILE), mode="a", encoding="utf-8"),
         logging.StreamHandler(sys.stderr),
     ],
 )
+# File gets DEBUG, stderr gets INFO
+logging.getLogger().handlers[0].setLevel(logging.DEBUG)
+logging.getLogger().handlers[1].setLevel(logging.INFO)
 log = logging.getLogger("autoservice-channel")
 log.info(f"=== Channel started PID={os.getpid()} ===")
 
@@ -130,25 +133,32 @@ _event_loop: asyncio.AbstractEventLoop | None = None
 
 async def inject_message(write_stream, msg: dict):
     """Send a channel notification to Claude Code via the MCP write stream."""
+    # Build meta — omit None values to avoid potential issues with Claude Code
+    meta = {
+        "chat_id": msg["chat_id"],
+        "message_id": msg.get("message_id", ""),
+        "user": msg.get("user", "unknown"),
+        "user_id": msg.get("user_id", ""),
+        "runtime_mode": msg.get("runtime_mode", "production"),
+        "business_mode": msg.get("business_mode", "sales"),
+        "source": msg.get("source", "feishu"),
+        "ts": msg.get("ts", datetime.now(tz=timezone.utc).isoformat()),
+    }
+    if msg.get("routed_to"):
+        meta["routed_to"] = msg["routed_to"]
+
+    params = {"content": msg["text"], "meta": meta}
+
+    log.debug(f"inject_message params: {json.dumps(params, ensure_ascii=False)[:500]}")
+
     notification = JSONRPCNotification(
         jsonrpc="2.0",
         method="notifications/claude/channel",
-        params={
-            "content": msg["text"],
-            "meta": {
-                "chat_id": msg["chat_id"],
-                "message_id": msg.get("message_id", ""),
-                "user": msg.get("user", "unknown"),
-                "user_id": msg.get("user_id", ""),
-                "runtime_mode": msg.get("runtime_mode", "production"),
-                "business_mode": msg.get("business_mode", "sales"),
-                "source": msg.get("source", "feishu"),
-                "routed_to": msg.get("routed_to"),
-                "ts": msg.get("ts", datetime.now(tz=timezone.utc).isoformat()),
-            },
-        },
+        params=params,
     )
-    await write_stream.send(SessionMessage(message=JSONRPCMessage(notification)))
+    session_msg = SessionMessage(message=JSONRPCMessage(notification))
+    log.debug(f"inject_message SessionMessage: {session_msg}")
+    await write_stream.send(session_msg)
     log.info(f"Injected: '{msg['text'][:60]}...' from {msg.get('user', '?')}")
 
 
@@ -304,6 +314,7 @@ async def main():
         async def consume_messages():
             while True:
                 msg = await _channel_client._message_queue.get()
+                log.info(f"consume_messages: got msg type={msg.get('type')} chat_id={msg.get('chat_id')} source={msg.get('source')} text={msg.get('text','')[:40]}")
                 try:
                     _refresh_instructions(server)
                     await inject_message(write_stream, msg)
