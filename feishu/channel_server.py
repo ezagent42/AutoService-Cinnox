@@ -849,7 +849,7 @@ class ChannelServer:
 # ---------------------------------------------------------------------------
 
 async def _async_main() -> None:
-    log_file = PROJECT_ROOT / ".autoservice" / "channel-server.log"
+    log_file = PROJECT_ROOT / ".autoservice" / "logs" / "channel-server.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.DEBUG,

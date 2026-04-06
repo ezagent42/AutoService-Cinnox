@@ -31,7 +31,7 @@ from mcp.types import JSONRPCMessage, JSONRPCNotification, Tool, TextContent
 # -- Config ------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-LOG_FILE = PROJECT_ROOT / ".autoservice" / "feishu-channel.log"
+LOG_FILE = PROJECT_ROOT / ".autoservice" / "logs" / "channel.log"
 INSTRUCTIONS_PATH = Path(__file__).parent / "channel-instructions.md"
 
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)

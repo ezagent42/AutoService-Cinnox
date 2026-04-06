@@ -28,7 +28,8 @@ run-channel:
 	uv run python3 feishu/channel.py
 
 run-web:
-	uv run uvicorn web.app:app --host 0.0.0.0 --port $${DEMO_PORT:-8000}
+	@mkdir -p .autoservice/logs
+	uv run uvicorn web.app:app --host 0.0.0.0 --port $${DEMO_PORT:-8000} --log-level info 2>&1 | tee -a .autoservice/logs/web.log
 
 run-server:
 	uv run python3 feishu/channel_server.py
