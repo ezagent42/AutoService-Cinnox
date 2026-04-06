@@ -162,6 +162,10 @@ class ChannelServer:
 
                 if msg_type == "register":
                     instance = await self._handle_register(ws, msg)
+                elif msg_type == "message":
+                    # Inbound message from web/app.py — route to channel.py
+                    # (Review fix I3: web sends type=message that needs routing)
+                    await self.route_message(msg.get("chat_id", ""), msg)
                 elif msg_type == "reply":
                     await self._handle_reply(msg)
                 elif msg_type == "react":
@@ -1075,16 +1079,43 @@ This is the largest code change. The new `channel.py` structure:
 
 3. **Keep unchanged**:
    - MCP server setup (`create_server`, `register_tools`, Tool definitions)
-   - `inject_message()` (lines 162-180)
    - `poll_feishu_queue()` → rename to `poll_message_queue()`
    - Plugin tool loading
    - Instructions hot-reload
    - `_FALLBACK_INSTRUCTIONS`, `_refresh_instructions()`
 
 4. **Modify**:
+   - `inject_message()` (lines 162-180) → update meta to pass `runtime_mode` + `business_mode` instead of `mode` (Review fix C1)
    - `_handle_reply()` → sends JSON to channel-server WS instead of Feishu API
    - `_handle_react()` → sends JSON to channel-server WS instead of Feishu API
    - `main()` → reads `AUTOSERVICE_CHAT_ID` env var, creates `ChannelClient`, runs alongside MCP server
+
+Updated `inject_message()` (Review fix C1 — mode field mismatch):
+
+```python
+async def inject_message(write_stream, msg: dict):
+    """Send a channel notification to Claude Code via the MCP write stream."""
+    notification = JSONRPCNotification(
+        jsonrpc="2.0",
+        method="notifications/claude/channel",
+        params={
+            "content": msg["text"],
+            "meta": {
+                "chat_id": msg["chat_id"],
+                "message_id": msg.get("message_id", ""),
+                "user": msg.get("user", "unknown"),
+                "user_id": msg.get("user_id", ""),
+                "runtime_mode": msg.get("runtime_mode", "production"),
+                "business_mode": msg.get("business_mode", "sales"),
+                "source": msg.get("source", "feishu"),
+                "routed_to": msg.get("routed_to"),
+                "ts": msg.get("ts", datetime.now(tz=timezone.utc).isoformat()),
+            },
+        },
+    )
+    await write_stream.send(SessionMessage(message=JSONRPCMessage(notification)))
+    log.info(f"Injected: '{msg['text'][:60]}...' from {msg.get('user', '?')}")
+```
 
 Key new code for `ChannelClient`:
 
@@ -1163,26 +1194,31 @@ class ChannelClient:
             }))
 ```
 
-Modified `_handle_reply` and `_handle_react`:
+Modified `_handle_reply` and `_handle_react` (Review fix C3 — safe async boundary):
 
 ```python
 # Module-level reference to the ChannelClient (set in main())
 _channel_client: ChannelClient | None = None
+_event_loop: asyncio.AbstractEventLoop | None = None  # set in main()
 
 def _handle_reply(args: dict) -> list[TextContent]:
     chat_id = args["chat_id"]
     text = args["text"]
-    if _channel_client and _channel_client.ws:
-        asyncio.get_event_loop().create_task(
-            _channel_client.send_reply(chat_id, text)
+    if _channel_client and _channel_client.ws and _event_loop:
+        # Use threadsafe call — MCP tool handlers may run from anyio context
+        # (Review fix C3: asyncio.get_event_loop() is unsafe under anyio/Python 3.12+)
+        asyncio.run_coroutine_threadsafe(
+            _channel_client.send_reply(chat_id, text),
+            _event_loop,
         )
         return [TextContent(type="text", text=f"Sent to {chat_id}")]
     return [TextContent(type="text", text="Error: not connected to channel-server")]
 
 def _handle_react(args: dict) -> list[TextContent]:
-    if _channel_client and _channel_client.ws:
-        asyncio.get_event_loop().create_task(
-            _channel_client.send_react(args["message_id"], args["emoji_type"])
+    if _channel_client and _channel_client.ws and _event_loop:
+        asyncio.run_coroutine_threadsafe(
+            _channel_client.send_react(args["message_id"], args["emoji_type"]),
+            _event_loop,
         )
         return [TextContent(type="text", text=f"Reacted {args['emoji_type']}")]
     return [TextContent(type="text", text="Error: not connected to channel-server")]
@@ -1192,7 +1228,8 @@ Modified `main()`:
 
 ```python
 async def main():
-    global _channel_client
+    global _channel_client, _event_loop
+    _event_loop = asyncio.get_running_loop()
 
     from autoservice.plugin_loader import discover
     plugins = discover("plugins")
@@ -1259,29 +1296,37 @@ git commit -m "feat: refactor channel.py — replace Feishu WS with channel-serv
 
 ## Phase 3: Web Integration
 
-### Task 3.1: Rewrite websocket.py as thin channel-server relay
+### Task 3.1: Rewrite websocket.py as multiplexed channel-server relay
+
+> **Review fix C2:** web/app.py uses ONE persistent WebSocket connection to channel-server
+> (registered with `chat_ids=["web_*"]`), and multiplexes all browser sessions over it.
+> This matches the architecture diagram and avoids per-session connection exhaustion.
+>
+> **Review fix I2:** Includes automated tests for the web relay path.
 
 **Files:**
 - Modify: `web/websocket.py:1-520` — full rewrite
-- Test: manual (requires running channel-server + channel.py)
+- Create: `tests/test_web_relay.py`
 
 **Step 1: Write new websocket.py**
 
-The new `websocket.py` is ~120 lines (down from 520). It:
-1. Authenticates the browser WebSocket (access code → token)
-2. Opens a WS connection to channel-server.py, registers `web_{session_id}`
-3. Relays browser messages → channel-server (as `message` type)
-4. Relays channel-server replies → browser (as `bot_text_delta`)
-5. Forwards `ux_event` to browser
-6. Maintains session_data and conversation log (via session_persistence)
+The new `websocket.py` has two layers:
+1. `WebChannelBridge` — singleton that owns ONE WS connection to channel-server, registers `web_*`, demuxes replies by chat_id
+2. `ws_chat()` — per-browser handler that authenticates, creates a chat_id, and relays through the bridge
 
 ```python
-# web/websocket.py — NEW (thin relay)
+# web/websocket.py — NEW (multiplexed relay, Review fix C2)
 """
 WebSocket handlers — browser ↔ channel-server relay.
 
 /ws       — raw debug (kept for backwards compat, optional)
 /ws/chat  — authenticated relay through channel-server.py
+
+Architecture (Review fix C2):
+  web/app.py opens ONE persistent connection to channel-server, registers web_*.
+  Each browser session gets a unique chat_id (web_{session_id}).
+  WebChannelBridge multiplexes all sessions over the single connection.
+  Replies include chat_id for demuxing back to the correct browser.
 """
 import asyncio
 import json
@@ -1301,6 +1346,76 @@ CHANNEL_SERVER_URL: str = "ws://localhost:9999"
 def configure(channel_server_url: str = "ws://localhost:9999") -> None:
     global CHANNEL_SERVER_URL
     CHANNEL_SERVER_URL = channel_server_url
+
+
+# ── Singleton bridge to channel-server (Review fix C2) ───────────────────
+
+class WebChannelBridge:
+    """Single persistent WS connection to channel-server, multiplexing all web sessions."""
+
+    def __init__(self):
+        self._ws: websockets.ClientConnection | None = None
+        self._subscribers: dict[str, asyncio.Queue] = {}  # chat_id -> reply queue
+        self._connected = asyncio.Event()
+        self._recv_task: asyncio.Task | None = None
+
+    async def ensure_connected(self):
+        """Connect to channel-server if not already connected."""
+        if self._ws and self._connected.is_set():
+            return
+        self._ws = await websockets.connect(CHANNEL_SERVER_URL)
+        await self._ws.send(json.dumps({
+            "type": "register",
+            "role": "web",
+            "chat_ids": ["web_*"],
+            "instance_id": "web-app",
+            "runtime_mode": "production",
+        }))
+        resp = json.loads(await self._ws.recv())
+        if resp.get("type") == "error":
+            raise RuntimeError(resp.get("message", "Registration failed"))
+        self._connected.set()
+        if self._recv_task is None or self._recv_task.done():
+            self._recv_task = asyncio.create_task(self._receive_loop())
+
+    async def _receive_loop(self):
+        """Receive messages from channel-server and dispatch to subscribers by chat_id."""
+        try:
+            async for raw in self._ws:
+                msg = json.loads(raw)
+                msg_type = msg.get("type")
+                chat_id = msg.get("chat_id", "")
+                if msg_type in ("reply", "ux_event") and chat_id in self._subscribers:
+                    await self._subscribers[chat_id].put(msg)
+                elif msg_type == "ping":
+                    await self._ws.send(json.dumps({"type": "pong"}))
+        except websockets.ConnectionClosed:
+            self._connected.clear()
+            self._ws = None
+            for q in self._subscribers.values():
+                await q.put({"type": "error", "text": "Channel server disconnected"})
+
+    def subscribe(self, chat_id: str) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue()
+        self._subscribers[chat_id] = q
+        return q
+
+    def unsubscribe(self, chat_id: str):
+        self._subscribers.pop(chat_id, None)
+
+    async def send_message(self, msg: dict):
+        if self._ws and self._connected.is_set():
+            await self._ws.send(json.dumps(msg, ensure_ascii=False))
+
+
+_bridge: WebChannelBridge | None = None
+
+async def _get_bridge() -> WebChannelBridge:
+    global _bridge
+    if _bridge is None:
+        _bridge = WebChannelBridge()
+    await _bridge.ensure_connected()
+    return _bridge
 
 
 # ── Generic debug handler (unchanged) ────────────────────────────────────
@@ -1352,31 +1467,19 @@ async def ws_chat(websocket: WebSocket):
         "type": "ready", "web_session_id": web_session_id, "mode": business_mode,
     })
 
-    # Step 3: connect to channel-server
-    cs_ws = None
+    # Step 3: connect to shared channel-server bridge (Review fix C2)
     try:
-        cs_ws = await websockets.connect(CHANNEL_SERVER_URL)
-        await cs_ws.send(json.dumps({
-            "type": "register",
-            "role": "web",
-            "chat_ids": [chat_id],
-            "instance_id": f"web-{web_session_id}",
-            "runtime_mode": "production",
-            "business_mode": business_mode,
-        }))
-        reg_resp = json.loads(await cs_ws.recv())
-        if reg_resp.get("type") == "error":
-            await websocket.send_json({"type": "error", "content": reg_resp.get("message", "Registration failed")})
-            await websocket.close()
-            return
+        bridge = await _get_bridge()
     except Exception as e:
         await websocket.send_json({"type": "error", "content": f"Cannot connect to channel-server: {e}"})
         await websocket.close()
         return
 
+    reply_queue = bridge.subscribe(chat_id)
+
     # Step 4: relay loop
     async def browser_to_server():
-        """Forward browser messages to channel-server."""
+        """Forward browser messages to channel-server via bridge."""
         try:
             while True:
                 raw = await websocket.receive_text()
@@ -1416,7 +1519,7 @@ async def ws_chat(websocket: WebSocket):
                 auth.touch_token(ws_token)
                 conversation.append({"role": "user", "content": user_text})
 
-                await cs_ws.send(json.dumps({
+                await bridge.send_message({
                     "type": "message",
                     "chat_id": chat_id,
                     "text": user_text,
@@ -1431,10 +1534,10 @@ async def ws_chat(websocket: WebSocket):
             pass
 
     async def server_to_browser():
-        """Forward channel-server messages to browser."""
+        """Forward channel-server replies (from bridge queue) to browser."""
         try:
-            async for raw in cs_ws:
-                msg = json.loads(raw)
+            while True:
+                msg = await reply_queue.get()
                 msg_type = msg.get("type")
 
                 if msg_type == "reply":
@@ -1448,17 +1551,16 @@ async def ws_chat(websocket: WebSocket):
                     await websocket.send_json({"type": "done"})
 
                 elif msg_type == "ux_event":
-                    # Forward thinking/searching indicators to browser
                     await websocket.send_json({
                         "type": msg.get("event", "thinking"),
                         **msg.get("data", {}),
                     })
 
-                elif msg_type == "ping":
-                    await cs_ws.send(json.dumps({"type": "pong"}))
-
-        except websockets.ConnectionClosed:
-            await websocket.send_json({"type": "error", "content": "Channel server disconnected."})
+                elif msg_type == "error":
+                    await websocket.send_json({
+                        "type": "error", "content": msg.get("text", "Server error"),
+                    })
+                    break
         except Exception:
             pass
 
@@ -1485,14 +1587,89 @@ async def ws_chat(websocket: WebSocket):
             t.cancel()
         hb_task.cancel()
     finally:
-        if cs_ws:
-            await cs_ws.close()
+        bridge.unsubscribe(chat_id)
         # Save session on disconnect
         if session_data.get("turn_count", 0) > 0:
             sessions.save_session_data(web_session_id, session_data)
 ```
 
-**Step 2: Update web/app.py to use new configure signature**
+**Step 2: Write web relay test (Review fix I2)**
+
+```python
+# tests/test_web_relay.py
+"""Tests for web/websocket.py relay via mock channel-server."""
+import asyncio
+import json
+import pytest
+import websockets
+
+MOCK_CS_PORT = 19997
+
+@pytest.mark.asyncio
+async def test_web_bridge_connects_and_registers():
+    """WebChannelBridge connects to channel-server and registers web_*."""
+    received_register = {}
+
+    async def mock_server(ws):
+        nonlocal received_register
+        msg = json.loads(await ws.recv())
+        received_register = msg
+        await ws.send(json.dumps({"type": "registered", "chat_ids": msg["chat_ids"]}))
+        try: await asyncio.Future()
+        except asyncio.CancelledError: pass
+
+    server = await websockets.serve(mock_server, "localhost", MOCK_CS_PORT)
+    try:
+        from web.websocket import WebChannelBridge
+        import web.websocket as ws_mod
+        old_url = ws_mod.CHANNEL_SERVER_URL
+        ws_mod.CHANNEL_SERVER_URL = f"ws://localhost:{MOCK_CS_PORT}"
+        try:
+            bridge = WebChannelBridge()
+            await bridge.ensure_connected()
+            assert received_register["type"] == "register"
+            assert received_register["chat_ids"] == ["web_*"]
+            assert received_register["role"] == "web"
+        finally:
+            ws_mod.CHANNEL_SERVER_URL = old_url
+    finally:
+        server.close()
+        await server.wait_closed()
+
+@pytest.mark.asyncio
+async def test_web_bridge_demuxes_replies():
+    """Bridge routes reply to correct subscriber by chat_id."""
+    async def mock_server(ws):
+        msg = json.loads(await ws.recv())
+        await ws.send(json.dumps({"type": "registered", "chat_ids": msg["chat_ids"]}))
+        await ws.send(json.dumps({
+            "type": "reply", "chat_id": "web_session_abc", "text": "Hello!",
+        }))
+        try: await asyncio.Future()
+        except asyncio.CancelledError: pass
+
+    server = await websockets.serve(mock_server, "localhost", MOCK_CS_PORT)
+    try:
+        from web.websocket import WebChannelBridge
+        import web.websocket as ws_mod
+        old_url = ws_mod.CHANNEL_SERVER_URL
+        ws_mod.CHANNEL_SERVER_URL = f"ws://localhost:{MOCK_CS_PORT}"
+        try:
+            bridge = WebChannelBridge()
+            await bridge.ensure_connected()
+            q = bridge.subscribe("web_session_abc")
+            msg = await asyncio.wait_for(q.get(), timeout=3)
+            assert msg["type"] == "reply"
+            assert msg["text"] == "Hello!"
+            bridge.unsubscribe("web_session_abc")
+        finally:
+            ws_mod.CHANNEL_SERVER_URL = old_url
+    finally:
+        server.close()
+        await server.wait_closed()
+```
+
+**Step 3: Update web/app.py to use new configure signature**
 
 In `web/app.py`, replace `ws_handlers.configure(demo_backend=DEMO_BACKEND)` with:
 
@@ -1504,11 +1681,11 @@ ws_handlers.configure(
 
 Remove the import and configuration of `claude_backend` and `system_prompts` (they will be deleted in Phase 5).
 
-**Step 3: Commit**
+**Step 5: Commit**
 
 ```bash
-git add web/websocket.py web/app.py
-git commit -m "feat: rewrite websocket.py as thin channel-server relay"
+git add web/websocket.py web/app.py tests/test_web_relay.py
+git commit -m "feat: rewrite websocket.py as multiplexed channel-server relay"
 ```
 
 ---

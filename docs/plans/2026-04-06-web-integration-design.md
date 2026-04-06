@@ -230,14 +230,13 @@ channel-instructions.md 只做模式路由和工具提示，不包含业务细�
   "business_mode": null
 }
 
-// web/app.py register — 指定 business_mode
+// web/app.py register — ONE connection, prefix pattern (Review fix C2)
 {
   "type": "register",
   "role": "web",
-  "chat_ids": ["web_sess_20260406_120000"],
+  "chat_ids": ["web_*"],
   "instance_id": "web-app",
-  "runtime_mode": "production",
-  "business_mode": "sales"
+  "runtime_mode": "production"
 }
 
 // message — 携带两层 mode
@@ -265,13 +264,16 @@ channel-instructions.md 只做模式路由和工具提示，不包含业务细�
 
 ### web/app.py 注册流程
 
+web/app.py 启动时开 **一个** 持久 WebSocket 连接到 channel-server，注册 `web_*`（前缀匹配）。所有浏览器 session 复用此连接。
+
 ```
-浏览器连接 /ws/chat → auth token 验证 → 生成 web_session_id
-  → web/app.py 连 channel-server ws://localhost:9999
-  → register(chat_ids=["web_{session_id}"], role="web", business_mode="sales")
-  → 后续浏览器消息 → 封装为 message type → 发给 channel-server
+web/app.py 启动 → 连 ws://localhost:9999 → register(chat_ids=["web_*"], role="web")
+  ↓
+浏览器连接 /ws/chat → auth token 验证 → 生成 web_session_id → chat_id = "web_{session_id}"
+  → web/app.py 内部 subscribe(chat_id) 到 bridge 的 reply 队列
+  → 浏览器消息 → bridge.send_message(type=message, chat_id=web_xxx)
   → channel-server 路由到 channel.py 实例 → Claude Code 处理
-  → reply(chat_id="web_{session_id}") → channel-server → web/app.py → 浏览器
+  → reply(chat_id="web_xxx") → channel-server → web/app.py bridge → demux by chat_id → 浏览器
 ```
 
 ### business_mode 确定时机
@@ -380,3 +382,73 @@ Web WebSocket 需要 heartbeat 保持连接。两层 heartbeat：
 | `claude.sh` | 改造 | 5 |
 | `Makefile` | 新增 target | 5 |
 | `.autoservice/rules/escalation.yaml` | 新增 | 4 |
+
+## 9. Design Review Findings
+
+**Reviewer:** Claude Opus 4.6 (code-reviewer agent)
+**Date:** 2026-04-06
+**Scope:** Architecture validation against current codebase + implementation plan consistency
+
+### What Works Well
+
+- **Clean separation of concerns** — three-tier split (channel-server as router, channel.py as MCP bridge, web/app.py as frontend) has well-defined boundaries.
+- **Mode taxonomy** — splitting overloaded `mode` into `runtime_mode` + `business_mode` resolves real ambiguity where `_chat_modes` conflates deployment context with conversation persona.
+- **YAGNI discipline** — no HA, no persistence queue, no auto-scaling for v1.
+
+### Critical Issues (Must Fix)
+
+**C1. `inject_message()` meta field mismatch**
+
+Current `inject_message()` in `channel.py:174` passes `"mode": msg.get("mode", "service")`. New protocol uses `runtime_mode` + `business_mode` as separate fields. If not updated, Claude Code will always see `mode: "service"` regardless of what channel-server sends — the entire mode taxonomy is silently broken.
+
+Fix: Task 2.1 must update `inject_message()` to pass both new fields in meta.
+
+**C2. Web per-session connections vs architecture diagram**
+
+§3 architecture diagram shows `web/app.py` as a **single** client with `chat_ids=["web_*"]` using prefix matching. But §5 registration flow describes each browser session opening its own WebSocket to channel-server with a unique `web_{session_id}`. 50 concurrent web users = 50 WebSocket connections + route table entries + heartbeats.
+
+Fix: web/app.py should open **one** persistent connection, register `web_*`, and multiplex all browser sessions over it. Replies include `chat_id` for demuxing.
+
+**C3. MCP tool handler async boundary**
+
+`_handle_reply` using `asyncio.get_event_loop().create_task()` inside MCP tool handler is unsafe. MCP runs under `anyio` task group; `asyncio.get_event_loop()` may return wrong loop or raise errors on Python 3.12+.
+
+Fix: Use threading (like current `send_reaction()`), or make handler async with `await`.
+
+### Important Issues (Should Fix)
+
+**I1. `_seen` set grows unboundedly in channel-server**
+
+Channel-server is a long-running daemon; `_seen` and `_recent_sent` never prune. Use `collections.deque(maxlen=10000)` alongside the set, evicting old entries.
+
+**I2. No test for web relay path**
+
+Web relay (websocket.py rewrite) has authentication, session persistence, bidirectional relay, and error handling — zero automated tests. Add `tests/test_web_relay.py` using mock WebSocket server.
+
+**I3. channel-server `_handle_client` missing `type: "message"` handler**
+
+Web/app.py sends `type: "message"` through its registered WebSocket, but `_handle_client` only handles `register`, `reply`, `react`, `ux_event`, `pong`. Web user messages will be dropped silently.
+
+Fix: Add `message` handler in `_handle_client` that calls `route_message()`.
+
+**I4. `session_persistence` API compatibility**
+
+Verify `save_session_data(web_session_id, session_data)` reads `access_code` from the dict internally. If it needs an explicit parameter, update the relay code.
+
+**I5. `_resolve_user` blocks Feishu SDK callback thread**
+
+Synchronous HTTP request in Feishu event callback blocks the SDK's event processing. Inherited from current channel.py, but more impactful in long-running daemon. Accept for v1, add TODO for v2.
+
+### Suggestions (Nice to Have)
+
+**S1.** Add `"protocol_version": 1` to register messages for future compatibility.
+
+**S2.** `_new_user` sentinel in message dict is fragile — handle admin notification immediately instead of embedding in message.
+
+**S3.** `claude.sh` chat_id detection heuristic (`[[ "$1" != [123] ]]`) is fragile. Prefer explicit `--chat` flag.
+
+**S4.** Design doc §5 says `@chat_id` for admin injection, but `/inject chat_id text` is better (avoids Feishu at-mention ambiguity). Align docs.
+
+**S5.** Web graceful degradation — show "service unavailable" with retry instead of WebSocket close when channel-server is down.
+
+**S6.** `_recent_sent` also never pruned — fix alongside `_seen` (I1).
