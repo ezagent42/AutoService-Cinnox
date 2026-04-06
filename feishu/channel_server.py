@@ -849,10 +849,19 @@ class ChannelServer:
 # ---------------------------------------------------------------------------
 
 async def _async_main() -> None:
+    log_file = PROJECT_ROOT / ".autoservice" / "channel-server.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        handlers=[
+            logging.FileHandler(str(log_file), mode="a", encoding="utf-8"),
+            logging.StreamHandler(),  # also print to terminal
+        ],
     )
+    # Keep terminal output at INFO, file at DEBUG
+    logging.getLogger().handlers[0].setLevel(logging.DEBUG)   # file
+    logging.getLogger().handlers[1].setLevel(logging.INFO)    # terminal
 
     port = int(os.environ.get("CHANNEL_SERVER_PORT", "9999"))
     admin_chat_id = os.environ.get("ADMIN_CHAT_ID")
