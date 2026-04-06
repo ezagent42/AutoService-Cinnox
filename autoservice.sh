@@ -5,7 +5,7 @@
 #
 # All modes run inside tmux for:
 #   - SSH disconnect resilience (session keeps running)
-#   - Seamless reattach from any terminal (./claude.sh)
+#   - Seamless reattach from any terminal (./autoservice.sh)
 #
 # Modes:
 #   [1] Interactive          — standard claude session
@@ -135,7 +135,7 @@ RC_FLAGS=""
 # natively. Over SSH, set SendEnv LC_TERMINAL in ~/.ssh/config
 # on the client, and AcceptEnv LC_* in sshd_config on the server.
 #
-# Override: CLAUDE_TMUX_CLASSIC=1 ./claude.sh  (force plain tmux)
+# Override: CLAUDE_TMUX_CLASSIC=1 ./autoservice.sh  (force plain tmux)
 # ============================================
 
 TMUX_CC=""
@@ -297,7 +297,7 @@ echo "📂 Working directory: $(pwd)"
 echo ""
 
 # Parse chat_id argument (first non-internal, non-mode arg)
-# Usage: ./claude.sh oc_xxx  or  ./claude.sh  (defaults to wildcard)
+# Usage: ./autoservice.sh oc_xxx  or  ./autoservice.sh  (defaults to wildcard)
 if [ "$1" != "--_internal" ] && [ -n "$1" ] && [[ "$1" != [123] ]]; then
     export AUTOSERVICE_CHAT_ID="$1"
     shift
@@ -313,7 +313,7 @@ if [ "$1" = "--_internal" ]; then
     SESSION_NAME="${3:-}"
 fi
 
-# If no internal args, user ran ./claude.sh from a new tmux window — ask interactively
+# If no internal args, user ran ./autoservice.sh from a new tmux window — ask interactively
 if [ -z "$RUN_MODE" ]; then
     echo "New session in existing tmux:"
     show_mode_menu
@@ -354,7 +354,7 @@ if [ -z "$RUN_MODE" ]; then
 fi
 
 echo "💡 Tips:"
-echo "   - Reattach after disconnect: ./claude.sh"
+echo "   - Reattach after disconnect: ./autoservice.sh"
 if [ -n "$TMUX_CC" ]; then
     echo "   (iTerm2 native integration active)"
     echo "   - New tab:     Cmd+T"
@@ -367,7 +367,7 @@ if [ -n "$TMUX_CC" ]; then
     echo "   - Detach:      close iTerm2 window (session keeps running)"
 else
     echo "   - Detach (keep running): Ctrl+b, d"
-    echo "   - New window: Ctrl+b, c  →  ./claude.sh"
+    echo "   - New window: Ctrl+b, c  →  ./autoservice.sh"
     echo "   - Split pane: Ctrl+b, %  or  Ctrl+b, \""
     echo "   - Switch pane/window: Ctrl+b, arrow / Ctrl+b, n/p"
     echo "   - Zoom pane:  Ctrl+b, z"
