@@ -576,10 +576,14 @@ class ChannelServer:
 
                 chat_id = msg.get("chat_id", "")
 
-                # Admin group commands
+                # Admin group: intercept slash commands, pass through normal messages
                 if self.admin_chat_id and chat_id == self.admin_chat_id:
-                    await self._handle_admin_message(msg)
-                    continue
+                    text = msg.get("text", "").strip()
+                    if text.startswith("/"):
+                        await self._handle_admin_message(msg)
+                        continue
+                    # Non-command messages in admin group → route normally
+                    # so Claude Code can assist the admin
 
                 # Normal routing
                 await self.route_message(chat_id, msg)
