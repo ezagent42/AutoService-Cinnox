@@ -163,6 +163,7 @@ async def page_chat():
 # ── WebSocket routes ──────────────────────────────────────────────────────
 app.websocket("/ws")(ws_handlers.ws_generic)
 app.websocket("/ws/chat")(ws_handlers.ws_chat)
+app.websocket("/ws/cinnox")(ws_handlers.ws_chat)  # alias for plugin chat.html
 
 
 # ── KB search HTTP endpoint ──────────────────────────────────────────────
