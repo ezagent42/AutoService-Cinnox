@@ -54,16 +54,13 @@ SESSIONS_DIR = ROOT / ".autoservice" / "database" / "sessions"
 LEADS_DIR    = ROOT / ".autoservice" / "database" / "knowledge_base" / "leads"
 
 SERVER_PORT          = int(os.getenv("DEMO_PORT", "8000"))
-DEMO_BACKEND         = os.getenv("DEMO_BACKEND", "sdk").lower()
 IDLE_TIMEOUT_SECONDS = int(os.getenv("IDLE_TIMEOUT_MINUTES", "15")) * 60
 ADMIN_KEY            = os.getenv("DEMO_ADMIN_KEY") or secrets.token_urlsafe(10)
 
 # ── Configure submodules ──────────────────────────────────────────────────
 from web import auth
-from web import claude_backend as backend
 from web import plugin_kb
 from web import session_persistence as sessions
-from web import system_prompts as prompts
 from web import websocket as ws_handlers
 
 auth.configure(
@@ -73,38 +70,13 @@ auth.configure(
 )
 auth.load_auth()
 
-backend.configure(root=ROOT, server_port=SERVER_PORT)
 plugin_kb.configure(root=ROOT)
 sessions.configure(sessions_dir=SESSIONS_DIR)
-ws_handlers.configure(demo_backend=DEMO_BACKEND)
-
-# Discover plugin SKILL.md / persona paths
-_plugin_dir = ROOT / "plugins"
-_skill_md: Path | None = None
-_skill_web_md: Path | None = None
-_persona_md: Path | None = None
-
-if _plugin_dir.exists():
-    for _pd in sorted(_plugin_dir.iterdir()):
-        if _pd.name.startswith("_"):
-            continue
-        _candidate_skill = _pd / "references" / "SKILL.md"
-        _candidate_skill_web = _pd / "references" / "SKILL_WEB.md"
-        _candidate_persona = _pd / "references" / "persona.md"
-        if _candidate_skill_web.exists() and _skill_web_md is None:
-            _skill_web_md = _candidate_skill_web
-        if _candidate_skill.exists() and _skill_md is None:
-            _skill_md = _candidate_skill
-        if _candidate_persona.exists() and _persona_md is None:
-            _persona_md = _candidate_persona
-
-prompts.configure(
-    root=ROOT,
-    server_port=SERVER_PORT,
-    skill_md=_skill_md,
-    skill_web_md=_skill_web_md,
-    persona_md=_persona_md,
+ws_handlers.configure(
+    channel_server_url=f"ws://localhost:{os.getenv('CHANNEL_SERVER_PORT', '9999')}"
 )
+
+_plugin_dir = ROOT / "plugins"
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────
@@ -135,13 +107,8 @@ async def lifespan(app: FastAPI):
     sep = "=" * 60
     print(f"\n{sep}")
     print("  AutoService Web Server")
-    print(f"  Backend    : {DEMO_BACKEND.upper()}", end="")
-    if DEMO_BACKEND == "sdk":
-        cli = backend.get_claude_cli()
-        print(f"  (Claude CLI: {cli or '(!) not found'})")
-    else:
-        api_key_ok = bool(os.getenv("ANTHROPIC_API_KEY"))
-        print(f"  model={os.getenv('DEMO_MODEL', 'claude-sonnet-4-6')}  key={'OK' if api_key_ok else '(!) ANTHROPIC_API_KEY not set!'}")
+    cs_port = os.getenv("CHANNEL_SERVER_PORT", "9999")
+    print(f"  Channel    : ws://localhost:{cs_port}")
     print(f"  Admin key  : {ADMIN_KEY}")
     print(f"  New code   : http://localhost:{SERVER_PORT}/admin/new-code?key={ADMIN_KEY}")
     print(f"  Demo login : http://localhost:{SERVER_PORT}/login")
