@@ -480,10 +480,16 @@ class ChannelServer:
         )
 
         def ws_thread():
-            # lark.ws.Client.start() calls asyncio.run() internally,
-            # which fails if the current thread has an event loop set.
-            # Ensure a clean asyncio state for this thread.
-            asyncio.set_event_loop(asyncio.new_event_loop())
+            # lark_oapi.ws.client captures asyncio.get_event_loop() at import
+            # time into a module-level `loop` variable, then calls
+            # loop.run_until_complete() in start(). If the import happened in
+            # the main thread (which has a running loop), this fails with
+            # "This event loop is already running".
+            # Fix: patch the module-level loop to a fresh one for this thread.
+            import lark_oapi.ws.client as _ws_mod
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            _ws_mod.loop = new_loop
             try:
                 ws_client.start()
             except Exception as e:
