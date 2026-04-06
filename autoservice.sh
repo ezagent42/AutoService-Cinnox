@@ -35,7 +35,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.npm-global/bin:$HOME/.local
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source user-local overrides (proxy, API keys, etc.)
-[ -f "$SCRIPT_DIR/claude.local.sh" ] && source "$SCRIPT_DIR/claude.local.sh"
+[ -f "$SCRIPT_DIR/autoservice.local.sh" ] && source "$SCRIPT_DIR/autoservice.local.sh"
 
 # Source MCP server secrets (API keys, tokens)
 [ -f "$SCRIPT_DIR/.mcp.env" ] && set -a && source "$SCRIPT_DIR/.mcp.env" && set +a
