@@ -238,6 +238,10 @@ class ChannelServer:
         """Process slash-commands from the admin chat."""
         text = msg.get("text", "").strip()
 
+        if text == "/help":
+            await self._reply_feishu(msg["chat_id"], self.help_text())
+            return
+
         if text == "/status":
             await self._reply_feishu(msg["chat_id"], self.status_text())
             return
@@ -801,24 +805,61 @@ class ChannelServer:
 
     def status_text(self) -> str:
         """Generate human-readable status for /status command."""
-        lines = ["=== Channel Server Status ==="]
-        lines.append(f"Instances connected: {len(self._ws_to_instance)}")
-        lines.append(f"Exact routes: {len(self.exact_routes)}")
-        lines.append(f"Prefix routes: {len(self.prefix_routes)}")
-        lines.append(f"Wildcard instances: {len(self.wildcard_instances)}")
+        lines = ["📊 Channel Server Status"]
+        lines.append(f"Messages: {self._msg_counter.get('received', 0)} in / {self._msg_counter.get('sent', 0)} out")
         lines.append("")
 
+        # Instances
+        lines.append(f"🔌 Instances ({len(self._ws_to_instance)}):")
         for inst in self._ws_to_instance.values():
             uptime = datetime.now(timezone.utc) - inst.connected_at
-            minutes = int(uptime.total_seconds() // 60)
-            lines.append(
-                f"  {inst.instance_id} role={inst.role} "
-                f"chat_ids={inst.chat_ids} "
-                f"runtime={inst.runtime_mode} "
-                f"uptime={minutes}m"
-            )
+            mins = int(uptime.total_seconds() // 60)
+            chat_str = ", ".join(inst.chat_ids)
+            lines.append(f"  • {inst.instance_id} [{inst.role}] → {chat_str} ({mins}m)")
+        if not self._ws_to_instance:
+            lines.append("  (none)")
+
+        # Route table
+        lines.append("")
+        lines.append("🗺️ Route Table:")
+        if self.exact_routes:
+            for cid, inst in self.exact_routes.items():
+                lines.append(f"  {cid} → {inst.instance_id}")
+        if self.prefix_routes:
+            for prefix, inst in self.prefix_routes.items():
+                lines.append(f"  {prefix}* → {inst.instance_id}")
+        if self.wildcard_instances:
+            for inst in self.wildcard_instances:
+                lines.append(f"  * (wildcard) → {inst.instance_id}")
+        if not self.exact_routes and not self.prefix_routes and not self.wildcard_instances:
+            lines.append("  (empty)")
+
+        # Known chats (active conversations)
+        lines.append("")
+        lines.append(f"💬 Active chats ({len(self._known_chats)}):")
+        for cid in sorted(self._known_chats):
+            routed = "→ " + self.exact_routes[cid].instance_id if cid in self.exact_routes else "→ wildcard"
+            lines.append(f"  {cid} {routed}")
+        if not self._known_chats:
+            lines.append("  (none yet)")
 
         return "\n".join(lines)
+
+    def help_text(self) -> str:
+        """Generate help text for /help command."""
+        return (
+            "📖 Channel Server Commands\n"
+            "\n"
+            "/status — Show instances, route table, active chats\n"
+            "/help — This message\n"
+            "/inject <chat_id> <text> — Send a message to a chat as admin\n"
+            "  Example: /inject oc_8aac6e1a... 注意当前活动打八折\n"
+            "\n"
+            "Non-command messages in this group will be forwarded to Claude Code.\n"
+            "\n"
+            "Start a dedicated instance:\n"
+            "  ./autoservice.sh oc_<chat_id>"
+        )
 
     # ------------------------------------------------------------------
     # Helpers
