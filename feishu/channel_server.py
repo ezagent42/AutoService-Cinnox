@@ -689,8 +689,16 @@ class ChannelServer:
                 wc_msg = message
             await self._send(inst.ws, wc_msg)
 
-        # 4. No route at all
-        if routed_instance is None and not self.wildcard_instances:
+        # 4. Log actionable info when no dedicated instance exists
+        if routed_instance is None and self.wildcard_instances:
+            user = message.get("user", "unknown")
+            source = message.get("source", "?")
+            log.info(
+                "💬 [%s] %s → wildcard (no dedicated instance)\n"
+                "   To start dedicated instance:  ./autoservice.sh %s",
+                source, user, chat_id,
+            )
+        elif routed_instance is None and not self.wildcard_instances:
             log.warning("No route for chat_id=%s, message dropped", chat_id)
 
     # ------------------------------------------------------------------
