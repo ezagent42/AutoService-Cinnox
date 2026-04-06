@@ -95,7 +95,7 @@ class ChannelServer:
         log.info("WebSocket server listening on %s:%s", self.host, self.port)
 
         if self.feishu_enabled:
-            task = asyncio.create_task(self._run_feishu(), name="feishu-ws")
+            task = asyncio.create_task(self._run_feishu_safe(), name="feishu-ws")
             self._tasks.append(task)
 
         await self._notify_admin("Channel-Server online")
@@ -148,10 +148,26 @@ class ChannelServer:
         app_secret = os.environ.get("FEISHU_APP_SECRET")
         if app_id and app_secret:
             return app_id, app_secret
-        if CREDENTIALS_PATH.exists():
-            creds = json.loads(CREDENTIALS_PATH.read_text())
-            return creds["app_id"], creds["app_secret"]
-        raise RuntimeError("Missing Feishu credentials — set FEISHU_APP_ID/FEISHU_APP_SECRET or create .feishu-credentials.json")
+        # Search: project root, then git toplevel (for worktrees)
+        search_paths = [CREDENTIALS_PATH]
+        try:
+            import subprocess
+            git_root = subprocess.check_output(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=str(PROJECT_ROOT), stderr=subprocess.DEVNULL,
+            ).decode().strip()
+            search_paths.append(Path(git_root) / ".feishu-credentials.json")
+        except Exception:
+            pass
+        for p in search_paths:
+            if p.exists():
+                creds = json.loads(p.read_text())
+                log.info("Loaded Feishu credentials from %s", p)
+                return creds["app_id"], creds["app_secret"]
+        raise RuntimeError(
+            "Missing Feishu credentials — set FEISHU_APP_ID/FEISHU_APP_SECRET "
+            f"or create .feishu-credentials.json (searched: {[str(p) for p in search_paths]})"
+        )
 
     # -- User resolution ------------------------------------------------
 
@@ -278,6 +294,13 @@ class ChannelServer:
         threading.Thread(target=_do_send, daemon=True).start()
 
     # -- Main Feishu loop -----------------------------------------------
+
+    async def _run_feishu_safe(self) -> None:
+        """Wrapper that logs errors instead of silently swallowing them."""
+        try:
+            await self._run_feishu()
+        except Exception as e:
+            log.error("Feishu integration failed: %s", e, exc_info=True)
 
     async def _run_feishu(self) -> None:
         """Connect to Feishu via WebSocket, consume messages and route them."""
