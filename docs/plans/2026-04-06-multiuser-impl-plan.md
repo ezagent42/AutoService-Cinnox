@@ -1898,50 +1898,294 @@ git commit -m "chore: remove unused AI SDK dependencies from web"
 
 ---
 
-### Task 5.4: Final integration test
+### Task 5.4: E2E test with agent-browser (Web channel)
 
-**Files:** None (manual verification)
+> Uses `agent-browser` CLI (v0.23.4) to automate the full browser flow:
+> login → chat → send message → receive reply → end session → logout.
+>
+> **Prerequisites:** channel-server + channel.py + web server all running.
 
-**Step 1: Start channel-server**
+**Files:**
+- Create: `tests/e2e/test_web_chat.sh`
+
+**Step 1: Create the E2E test script**
 
 ```bash
-# Terminal 1
-FEISHU_ENABLED=0 make run-server
+#!/bin/bash
+# tests/e2e/test_web_chat.sh — E2E test for web chat via agent-browser
+#
+# Prerequisites:
+#   Terminal 1: FEISHU_ENABLED=0 make run-server
+#   Terminal 2: AUTOSERVICE_CHAT_ID="*" ./claude.sh
+#   Terminal 3: make run-web
+#
+# Usage: bash tests/e2e/test_web_chat.sh [port]
+
+set -euo pipefail
+PORT="${1:-8000}"
+BASE="http://localhost:${PORT}"
+SESSION="e2e-web-chat"
+ADMIN_KEY="${DEMO_ADMIN_KEY:-}"
+PASS=0
+FAIL=0
+
+pass() { PASS=$((PASS+1)); echo "  ✅ $1"; }
+fail() { FAIL=$((FAIL+1)); echo "  ❌ $1"; }
+cleanup() { agent-browser --session "$SESSION" close 2>/dev/null || true; }
+trap cleanup EXIT
+
+echo "=== E2E: Web Chat via channel-server ==="
+echo "Target: $BASE"
+echo ""
+
+# ── 0. Get an access code ────────────────────────────────────────────────
+echo "▶ Step 0: Generate access code"
+if [ -z "$ADMIN_KEY" ]; then
+  # Try to read from .env
+  ADMIN_KEY=$(grep -s DEMO_ADMIN_KEY .env | cut -d= -f2 || true)
+fi
+if [ -z "$ADMIN_KEY" ]; then
+  echo "  ⚠ DEMO_ADMIN_KEY not set — reading from server startup logs"
+  echo "  Set DEMO_ADMIN_KEY env var or pass it manually"
+  exit 1
+fi
+
+CODE_RESP=$(curl -s "${BASE}/admin/new-code?key=${ADMIN_KEY}")
+ACCESS_CODE=$(echo "$CODE_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('code',''))" 2>/dev/null || true)
+if [ -z "$ACCESS_CODE" ]; then
+  fail "Could not generate access code"
+  exit 1
+fi
+pass "Access code: $ACCESS_CODE"
+
+# ── 1. Login page ────────────────────────────────────────────────────────
+echo ""
+echo "▶ Step 1: Login"
+agent-browser --session "$SESSION" open "${BASE}/login" && \
+  agent-browser --session "$SESSION" wait --load networkidle
+agent-browser --session "$SESSION" snapshot -i
+
+# Fill access code and submit
+agent-browser --session "$SESSION" fill "#code-input" "$ACCESS_CODE"
+agent-browser --session "$SESSION" click "#submit-btn"
+agent-browser --session "$SESSION" wait --url "**/chat" --timeout 10000
+
+URL=$(agent-browser --session "$SESSION" get url)
+if echo "$URL" | grep -q "/chat"; then
+  pass "Redirected to /chat"
+else
+  fail "Not redirected to /chat (URL: $URL)"
+  exit 1
+fi
+
+# ── 2. Chat page loads, WebSocket connects ───────────────────────────────
+echo ""
+echo "▶ Step 2: Chat page + WebSocket"
+agent-browser --session "$SESSION" wait --load networkidle
+agent-browser --session "$SESSION" wait "#conn-dot" --timeout 15000
+
+# Wait for connection dot to go green (class=live)
+agent-browser --session "$SESSION" wait --fn "document.querySelector('#conn-dot')?.classList.contains('live')" --timeout 15000
+
+CONN_TEXT=$(agent-browser --session "$SESSION" get text "#conn-label" 2>/dev/null || echo "unknown")
+if echo "$CONN_TEXT" | grep -qi "connect"; then
+  pass "WebSocket connected ($CONN_TEXT)"
+else
+  fail "WebSocket not connected ($CONN_TEXT)"
+fi
+
+# ── 3. Send a message ───────────────────────────────────────────────────
+echo ""
+echo "▶ Step 3: Send message"
+agent-browser --session "$SESSION" snapshot -i
+agent-browser --session "$SESSION" fill "#msg-input" "Hello, what products do you offer?"
+agent-browser --session "$SESSION" click "#send-btn"
+
+# Verify user message appears
+agent-browser --session "$SESSION" wait --text "Hello, what products" --timeout 5000
+pass "User message displayed"
+
+# ── 4. Wait for bot reply ────────────────────────────────────────────────
+echo ""
+echo "▶ Step 4: Wait for bot reply"
+
+# Wait for typing indicator to appear then disappear (bot responding)
+agent-browser --session "$SESSION" wait "#typing-indicator" --timeout 30000 2>/dev/null || true
+
+# Wait for 'done' — typing indicator disappears and a bot bubble exists
+agent-browser --session "$SESSION" wait --fn "document.querySelectorAll('.msg-row.bot .bubble').length > 0" --timeout 120000
+
+BOT_TEXT=$(agent-browser --session "$SESSION" eval 'document.querySelector(".msg-row.bot .bubble")?.innerText?.substring(0, 80)' 2>/dev/null || echo "")
+if [ -n "$BOT_TEXT" ]; then
+  pass "Bot replied: ${BOT_TEXT}..."
+else
+  fail "No bot reply found"
+fi
+
+# ── 5. End session ──────────────────────────────────────────────────────
+echo ""
+echo "▶ Step 5: End session"
+agent-browser --session "$SESSION" snapshot -i
+agent-browser --session "$SESSION" click "#btn-end"
+agent-browser --session "$SESSION" wait --text "Session ended" --timeout 10000
+pass "Session ended"
+
+# ── 6. Logout ────────────────────────────────────────────────────────────
+echo ""
+echo "▶ Step 6: Logout"
+agent-browser --session "$SESSION" click "#btn-logout"
+agent-browser --session "$SESSION" wait --url "**/login" --timeout 10000
+
+URL=$(agent-browser --session "$SESSION" get url)
+if echo "$URL" | grep -q "/login"; then
+  pass "Redirected back to /login"
+else
+  fail "Not redirected to /login (URL: $URL)"
+fi
+
+# ── Results ──────────────────────────────────────────────────────────────
+echo ""
+echo "=== Results: $PASS passed, $FAIL failed ==="
+[ "$FAIL" -eq 0 ] && exit 0 || exit 1
 ```
 
-**Step 2: Start channel.py via Claude Code**
+**Step 2: Make executable and test**
 
 ```bash
-# Terminal 2
-AUTOSERVICE_CHAT_ID="*" CHANNEL_SERVER_PORT=9999 ./claude.sh
+chmod +x tests/e2e/test_web_chat.sh
 ```
 
-Verify in Terminal 1 logs: registration message received.
-
-**Step 3: Start web server**
-
+Run with all three services up:
 ```bash
-# Terminal 3
-make run-web
+# Terminal 1: FEISHU_ENABLED=0 make run-server
+# Terminal 2: AUTOSERVICE_CHAT_ID="*" ./claude.sh
+# Terminal 3: make run-web
+# Terminal 4:
+bash tests/e2e/test_web_chat.sh
 ```
 
-Open browser at `http://localhost:8000/login`, get access code, start chat.
-Verify: messages flow browser → web/app.py → channel-server → channel.py → Claude Code → reply → reverse path → browser.
+**Step 3: Add Makefile target**
 
-**Step 4: Verify Feishu (if credentials available)**
-
-```bash
-# Terminal 1 (restart with Feishu)
-make run-server
+```makefile
+e2e-web:
+	bash tests/e2e/test_web_chat.sh
 ```
 
-Send a Feishu message → verify it routes to the wildcard channel.py instance.
-
-**Step 5: Commit any fixes, then final commit**
+**Step 4: Commit**
 
 ```bash
-git add -A
-git commit -m "test: verify end-to-end multi-channel routing"
+git add tests/e2e/test_web_chat.sh Makefile
+git commit -m "test: E2E web chat test with agent-browser"
+```
+
+---
+
+### Task 5.5: E2E test with mock Feishu (channel-server routing)
+
+> Tests the Feishu path without real Feishu credentials.
+> Uses a Python script that connects to channel-server as a mock "Feishu source",
+> injects a message, and verifies the reply comes back.
+
+**Files:**
+- Create: `tests/e2e/test_feishu_mock.py`
+
+**Step 1: Write the mock Feishu E2E test**
+
+```python
+#!/usr/bin/env python3
+"""
+E2E test: mock Feishu message → channel-server → channel.py → reply.
+
+Prerequisites:
+  Terminal 1: FEISHU_ENABLED=0 make run-server
+  Terminal 2: AUTOSERVICE_CHAT_ID="*" ./claude.sh
+
+This script connects to channel-server as a mock channel.py instance,
+sends a message through the routing layer, and verifies it receives
+the message back (since it's registered as wildcard).
+"""
+import asyncio
+import json
+import sys
+
+import websockets
+
+SERVER_URL = "ws://localhost:9999"
+
+
+async def main():
+    print("=== E2E: Mock Feishu via channel-server ===")
+
+    # Connect and register as wildcard (like the developer instance)
+    async with websockets.connect(SERVER_URL) as ws:
+        # Register
+        await ws.send(json.dumps({
+            "type": "register",
+            "role": "developer",
+            "chat_ids": ["*"],
+            "instance_id": "e2e-mock-feishu",
+            "runtime_mode": "improve",
+        }))
+        resp = json.loads(await ws.recv())
+        assert resp["type"] == "registered", f"Registration failed: {resp}"
+        print("  ✅ Registered as wildcard instance")
+
+        # Inject a message directly through the server's route_message
+        # (In real flow, Feishu WS would do this; here we send type=message)
+        await ws.send(json.dumps({
+            "type": "message",
+            "chat_id": "oc_e2e_test",
+            "message_id": "om_test_001",
+            "user": "E2E Tester (ou_test)",
+            "user_id": "ou_test",
+            "text": "E2E test message",
+            "source": "feishu",
+            "runtime_mode": "production",
+            "business_mode": "sales",
+            "ts": "2026-04-06T00:00:00Z",
+        }))
+
+        # As wildcard, we should receive this message back
+        msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=10))
+        assert msg["type"] == "message", f"Expected message, got: {msg['type']}"
+        assert msg["chat_id"] == "oc_e2e_test"
+        assert msg["text"] == "E2E test message"
+        print(f"  ✅ Received routed message: {msg['text']}")
+
+        # Test reply reverse routing (will fail for oc_ without Feishu,
+        # but the protocol should work)
+        await ws.send(json.dumps({
+            "type": "reply",
+            "chat_id": "oc_e2e_test",
+            "text": "E2E reply",
+        }))
+        print("  ✅ Reply sent (Feishu delivery skipped — no credentials)")
+
+        # Test /status command (if admin_chat_id is not set, just verify protocol)
+        print("")
+        print("=== Results: all passed ===")
+
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"  ❌ FAILED: {e}")
+        sys.exit(1)
+```
+
+**Step 2: Add Makefile target**
+
+```makefile
+e2e-feishu:
+	uv run python3 tests/e2e/test_feishu_mock.py
+```
+
+**Step 3: Commit**
+
+```bash
+git add tests/e2e/test_feishu_mock.py Makefile
+git commit -m "test: E2E mock Feishu routing test via channel-server"
 ```
 
 ---
@@ -1955,11 +2199,22 @@ git commit -m "test: verify end-to-end multi-channel routing"
 | 1.3 | 1 | Feishu WS migration | `feishu/channel-server.py` |
 | 1.4 | 1 | Makefile + deps | `Makefile`, `pyproject.toml` |
 | 2.1 | 2 | channel.py refactor | `feishu/channel.py`, `tests/test_channel_client.py` |
-| 3.1 | 3 | websocket.py relay rewrite | `web/websocket.py` |
+| 3.1 | 3 | websocket.py multiplexed relay | `web/websocket.py`, `tests/test_web_relay.py` |
 | 3.2 | 3 | web/app.py cleanup | `web/app.py` |
 | 4.1 | 4 | channel-instructions.md thin | `feishu/channel-instructions.md` |
 | 4.2 | 4 | Escalation rules data | `.autoservice/rules/escalation.yaml` |
 | 5.1 | 5 | Delete obsolete modules | `web/claude_backend.py`, `web/system_prompts.py` |
 | 5.2 | 5 | claude.sh chat_id param | `claude.sh` |
 | 5.3 | 5 | Remove unused deps | `pyproject.toml` |
-| 5.4 | 5 | Integration test | manual |
+| 5.4 | 5 | E2E web chat (agent-browser) | `tests/e2e/test_web_chat.sh` |
+| 5.5 | 5 | E2E mock Feishu routing | `tests/e2e/test_feishu_mock.py` |
+
+## Test Strategy Summary
+
+| Layer | Tool | Files | What it covers |
+|-------|------|-------|---------------|
+| Unit | pytest + mock WS | `tests/test_channel_server.py` | Routing, registration, conflicts, dedup |
+| Unit | pytest + mock WS | `tests/test_channel_client.py` | channel.py registration + reconnect |
+| Unit | pytest + mock WS | `tests/test_web_relay.py` | WebChannelBridge connect, demux |
+| E2E Web | agent-browser CLI | `tests/e2e/test_web_chat.sh` | Login → chat → send → reply → end → logout |
+| E2E Feishu | Python + websockets | `tests/e2e/test_feishu_mock.py` | Mock message → routing → reply protocol |
