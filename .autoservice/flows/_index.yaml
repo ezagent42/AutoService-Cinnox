@@ -1,0 +1,5 @@
+flows:
+  - id: identify-customer-type
+    name: 识别客户类型
+    tags: [customer, identification, gate]
+    triggers: ["客户类型", "新客户还是老客户", "识别", "判断用户"]

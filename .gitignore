@@ -1,6 +1,8 @@
 # Runtime
 .autoservice/
 !.autoservice/rules/
+!.autoservice/flows/
+!.autoservice/config.yaml
 *.db
 .env
 .feishu-credentials.json

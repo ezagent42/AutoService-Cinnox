@@ -1,0 +1,63 @@
+id: identify-customer-type
+name: 识别客户类型
+description: 根据用户首条消息判断新客户/老客户/合作伙伴
+tags: [customer, identification, gate]
+
+entry: check_signal
+exits:
+  - node: route_new
+    type: handoff
+    next_flow: new-customer-lead
+  - node: route_existing
+    type: handoff
+    next_flow: existing-customer-verify
+  - node: route_partner
+    type: handoff
+    next_flow: partner-escalation
+  - node: ask_type
+    type: handoff
+    next_flow: identify-customer-type
+
+nodes:
+  - id: check_signal
+    label: 检查消息信号
+    type: process
+    note: 从首条消息提取意图关键词（"interested in"→新客户, "my account"→老客户, "reseller"→合作伙伴）
+
+  - id: has_signal
+    label: 信号明确？
+    type: decision
+    condition: 消息包含客户类型关键词
+
+  - id: route_new
+    label: → 新客户流程
+    type: exit
+
+  - id: route_existing
+    label: → 老客户流程
+    type: exit
+
+  - id: route_partner
+    label: → 合作伙伴流程
+    type: exit
+
+  - id: ask_type
+    label: 询问客户类型
+    type: action
+    note: "Happy to help! Are you new to CINNOX, or do you already have an account with us?"
+
+edges:
+  - from: check_signal
+    to: has_signal
+  - from: has_signal
+    to: route_new
+    label: 新客户信号
+  - from: has_signal
+    to: route_existing
+    label: 老客户信号
+  - from: has_signal
+    to: route_partner
+    label: 合作伙伴信号
+  - from: has_signal
+    to: ask_type
+    label: 无明确信号
