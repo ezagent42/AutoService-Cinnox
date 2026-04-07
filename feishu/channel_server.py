@@ -138,6 +138,8 @@ class ChannelServer:
     _chat_modes: dict[str, str] = {}          # chat_id -> "production" | "improve"
     _known_chats: dict[str, dict] = {}         # chat_id → {"user": ..., "source": ..., "label": ...}
     _msg_counter: dict[str, int] = {"sent": 0, "received": 0}
+    _ack_reactions: dict[str, str] = {}        # message_id → reaction_id (for removal after reply)
+    _last_msg_id: dict[str, str] = {}          # chat_id → last inbound message_id
 
     # -- Credentials ----------------------------------------------------
 
@@ -213,7 +215,7 @@ class ChannelServer:
 
     # -- Reaction helper ------------------------------------------------
 
-    def _send_reaction(self, message_id: str, emoji_type: str = ACK_EMOJI) -> None:
+    def _send_reaction(self, message_id: str, emoji_type: str = ACK_EMOJI, *, track: bool = False) -> None:
         """Add emoji reaction to a Feishu message. Blocking, meant for daemon thread."""
         import lark_oapi as lark  # lazy
 
@@ -229,8 +231,110 @@ class ChannelServer:
             resp = self._feishu_client.request(req)
             if not resp.success():
                 log.debug("Reaction failed: %s", resp.code)
+                return
+            # Store reaction_id for later removal
+            if track:
+                try:
+                    data = json.loads(resp.raw.content)
+                    reaction_id = data.get("data", {}).get("reaction_id", "")
+                    if reaction_id:
+                        self._ack_reactions[message_id] = reaction_id
+                        log.debug("Tracked ACK reaction: msg=%s reaction=%s", message_id, reaction_id)
+                except Exception:
+                    pass
         except Exception as e:
             log.debug("Reaction error: %s", e)
+
+    def _remove_reaction(self, message_id: str) -> None:
+        """Remove the ACK reaction from a message. Blocking, meant for daemon thread."""
+        reaction_id = self._ack_reactions.pop(message_id, "")
+        if not reaction_id:
+            return
+
+        import lark_oapi as lark  # lazy
+
+        try:
+            req = (
+                lark.BaseRequest.builder()
+                .http_method(lark.HttpMethod.DELETE)
+                .uri(f"/open-apis/im/v1/messages/{message_id}/reactions/{reaction_id}")
+                .token_types({lark.AccessTokenType.TENANT})
+                .build()
+            )
+            resp = self._feishu_client.request(req)
+            if resp.success():
+                log.debug("Removed ACK reaction: msg=%s", message_id)
+            else:
+                log.debug("Remove reaction failed: %s", resp.code)
+        except Exception as e:
+            log.debug("Remove reaction error: %s", e)
+
+    # -- File download ---------------------------------------------------
+
+    def _download_feishu_file(self, message_id: str, message) -> str:
+        """Download a file/image/audio/media attachment from Feishu.
+
+        Returns the local file path on success, empty string on failure.
+        Files are saved to .autoservice/uploads/{chat_id}/{file_name}.
+        """
+        try:
+            content = json.loads(message.content or "{}")
+        except Exception:
+            log.warning("Cannot parse message content for file download")
+            return ""
+
+        msg_type = message.message_type or ""
+        chat_id = message.chat_id or "unknown"
+
+        # Determine file_key and file_name based on message type
+        if msg_type == "image":
+            file_key = content.get("image_key", "")
+            file_name = f"{file_key}.png" if file_key else ""
+            resource_type = "image"
+        elif msg_type == "file":
+            file_key = content.get("file_key", "")
+            file_name = content.get("file_name", file_key or "unknown_file")
+            resource_type = "file"
+        elif msg_type in ("audio", "media"):
+            file_key = content.get("file_key", "")
+            file_name = content.get("file_name", f"{file_key}.bin" if file_key else "media.bin")
+            resource_type = "file"
+        else:
+            return ""
+
+        if not file_key:
+            log.warning("No file_key in %s message", msg_type)
+            return ""
+
+        # Download via Feishu API
+        try:
+            import lark_oapi as lark
+
+            req = (
+                lark.BaseRequest.builder()
+                .http_method(lark.HttpMethod.GET)
+                .uri(f"/open-apis/im/v1/messages/{message_id}/resources/{file_key}?type={resource_type}")
+                .token_types({lark.AccessTokenType.TENANT})
+                .build()
+            )
+            resp = self._feishu_client.request(req)
+            if not resp.success():
+                log.warning("File download failed: code=%s msg=%s", resp.code, resp.msg)
+                return ""
+
+            # Save to .autoservice/uploads/{chat_id}/
+            upload_dir = PROJECT_ROOT / ".autoservice" / "uploads" / chat_id
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            dest = upload_dir / file_name
+
+            # Write raw bytes
+            dest.write_bytes(resp.raw.content)
+            log.info("Downloaded %s → %s (%d bytes)", msg_type, dest, len(resp.raw.content))
+            return str(dest)
+
+        except Exception as e:
+            log.error("File download error: %s", e, exc_info=True)
+            return ""
 
     # -- Admin message handling -----------------------------------------
 
@@ -246,7 +350,7 @@ class ChannelServer:
             await self._reply_feishu(msg["chat_id"], self.status_text())
             return
 
-        if text.startswith("/inject "):
+        if text.startswith("/inject"):
             # /inject #N <text> or /inject <chat_id> <text>
             parts = text.split(None, 2)
             if len(parts) < 3:
@@ -272,6 +376,32 @@ class ChannelServer:
             await self.route_message(target_chat_id, injected_msg)
             await self._reply_feishu(msg["chat_id"], f"Injected to {target_chat_id}")
             return
+
+        if text.startswith("/explain"):
+            query = text[len("/explain"):].strip()
+            if not query:
+                await self._reply_feishu(msg["chat_id"], "Usage: /explain <场景描述>\n  Example: /explain 用户问DID号码的价格")
+                return
+            await self._reply_feishu(msg["chat_id"], f"🔍 正在分析流程: {query[:50]}...")
+            explain_msg = {
+                "type": "message",
+                "chat_id": "admin_explain",
+                "text": query,
+                "message_id": f"explain_{datetime.now(timezone.utc).timestamp():.0f}",
+                "user": "admin",
+                "user_id": "",
+                "runtime_mode": "explain",
+                "business_mode": "customer_service",
+                "source": "admin",
+                "admin_chat_id": self.admin_chat_id,
+                "ts": datetime.now(timezone.utc).isoformat(),
+            }
+            await self.route_message("admin_explain", explain_msg)
+            return
+
+        # Unknown command
+        cmd = text.split()[0] if text else text
+        await self._reply_feishu(msg["chat_id"], f"未知命令: {cmd}\n发送 /help 查看可用命令")
 
     # -- Feishu reply helper --------------------------------------------
 
@@ -365,11 +495,12 @@ class ChannelServer:
                 self._seen.clear()
             self._seen.add(msg_id)
 
-            # ACK reaction (fire-and-forget)
-            threading.Thread(target=self._send_reaction, args=(msg_id,), daemon=True).start()
+            # ACK reaction (tracked for removal after reply)
+            threading.Thread(target=self._send_reaction, args=(msg_id,), kwargs={"track": True}, daemon=True).start()
 
-            # Parse text
+            # Parse text / files
             text = ""
+            file_path = ""
             msg_type = message.message_type or "text"
             if msg_type == "text":
                 try:
@@ -387,6 +518,12 @@ class ChannelServer:
                     text = " ".join(p for p in parts if p)
                 except Exception:
                     pass
+            elif msg_type in ("file", "image", "audio", "media"):
+                file_path = self._download_feishu_file(msg_id, message)
+                if file_path:
+                    text = f"[File received: {file_path}]"
+                else:
+                    text = f"({msg_type} message — download failed)"
             if not text:
                 text = f"({msg_type} message)"
 
@@ -471,6 +608,11 @@ class ChannelServer:
                 "business_mode": "sales",
                 "ts": ts,
             }
+            if file_path:
+                msg["file_path"] = file_path
+            # Track last message_id per chat for ACK reaction removal on reply
+            if msg_id and chat_id:
+                self._last_msg_id[chat_id] = msg_id
             log.info("[feishu] %s: %s", display_name, text[:60])
             loop.call_soon_threadsafe(queue.put_nowait, msg)
             self._msg_counter["received"] += 1
@@ -768,6 +910,10 @@ class ChannelServer:
             text = msg.get("text", "")
             log.info("Reply to Feishu chat_id=%s text=%s", chat_id, text[:60])
             await self._reply_feishu(chat_id, text)
+            # Remove ACK reaction now that we've replied
+            last_msg = self._last_msg_id.get(chat_id, "")
+            if last_msg and last_msg in self._ack_reactions:
+                threading.Thread(target=self._remove_reaction, args=(last_msg,), daemon=True).start()
         elif chat_id.startswith("web_"):
             # WebSocket relay -- find the web instance that owns this chat_id
             target = self.exact_routes.get(chat_id) or self._find_prefix_instance(chat_id)
@@ -897,6 +1043,8 @@ class ChannelServer:
             "/inject #N <text> — Send to chat by number\n"
             "/inject <chat_id> <text> — Send to chat by full ID\n"
             "  Example: /inject #1 注意当前活动打八折\n"
+            "/explain <场景描述> — Generate flow visualization\n"
+            "  Example: /explain 用户问DID号码的价格\n"
             "\n"
             "Non-command messages → forwarded to Claude Code\n"
             "\n"
