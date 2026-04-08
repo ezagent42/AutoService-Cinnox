@@ -1,0 +1,55 @@
+id: subagent-orchestration
+name: 子代理编排
+description: KB子代理检索 → 起草回复 → copywriting润色 → reviewer审核的流水线
+tags: [subagent, pipeline, kb, copywriting, review]
+
+entry: dispatch_kb
+exits:
+  - node: exit_send
+    type: resolve
+
+nodes:
+  - id: dispatch_kb
+    label: 分发KB子代理
+    type: process
+    note: 根据路由结果调用 product-query 或 region-query 子代理，传入 expanded_query
+
+  - id: draft_response
+    label: 起草客户回复
+    type: process
+    note: 基于KB子代理返回的结构化数据，结合 SKILL.md 规则起草回复
+
+  - id: copywriting
+    label: Copywriting 润色
+    type: process
+    note: 发送草稿 + customer_type + sentiment 给 copywriting 子代理
+
+  - id: reviewer_check
+    label: Reviewer 审核通过？
+    type: decision
+    condition: reviewer 返回 passed=true
+
+  - id: fix_issues
+    label: 修复问题
+    type: action
+    note: 根据 reviewer 的 recommendation 修复 critical/major 问题，最多重试1次
+
+  - id: exit_send
+    label: 发送回复给客户
+    type: exit
+
+edges:
+  - from: dispatch_kb
+    to: draft_response
+  - from: draft_response
+    to: copywriting
+  - from: copywriting
+    to: reviewer_check
+  - from: reviewer_check
+    to: exit_send
+    label: passed=true
+  - from: reviewer_check
+    to: fix_issues
+    label: passed=false
+  - from: fix_issues
+    to: reviewer_check

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 autoservice-channel: Claude Code Channel MCP Server
-Bridges Feishu messaging <-> Claude Code via MCP stdio protocol.
+Connects to channel-server.py via WebSocket, bridges messages to Claude Code via MCP stdio.
 
-Based on the zchat-channel pattern:
+Architecture:
+- ChannelClient connects to channel-server via WebSocket (auto-reconnect)
 - MCP low-level Server + stdio_server()
-- Feishu WebSocket runs in background thread, pushes to asyncio.Queue
-- poll_feishu_queue consumes queue, writes SessionMessage to write_stream
-- server.run and poller run in parallel via anyio.create_task_group
+- consume_messages reads from ChannelClient queue, injects into MCP write_stream
+- server.run, ChannelClient.connect, and consume_messages run in parallel via anyio task group
 
 Plugin tools from autoservice.plugin_loader are dynamically registered
 alongside the core reply/react tools.
@@ -17,383 +17,154 @@ import json
 import logging
 import os
 import sys
-import time
-import threading
 from pathlib import Path
 from datetime import datetime, timezone
 
 import anyio
+import websockets
 import mcp.server.stdio
 from mcp.server.lowlevel import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.shared.message import SessionMessage
 from mcp.types import JSONRPCMessage, JSONRPCNotification, Tool, TextContent
 
-import requests as http_requests  # renamed to avoid conflict
-import lark_oapi as lark
-from lark_oapi.api.im.v1 import (
-    CreateMessageRequest,
-    CreateMessageRequestBody,
-    P2ImMessageReceiveV1,
-)
-
 # -- Config ------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-LOG_FILE = PROJECT_ROOT / ".autoservice" / "feishu-channel.log"
-CREDENTIALS_PATH = PROJECT_ROOT / ".feishu-credentials.json"
+LOG_FILE = PROJECT_ROOT / ".autoservice" / "logs" / "channel.log"
 INSTRUCTIONS_PATH = Path(__file__).parent / "channel-instructions.md"
+IDENTITY_PATH = PROJECT_ROOT / ".autoservice" / "identity.yaml"
 
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format="[autoservice-channel] %(asctime)s %(levelname)s %(message)s",
     handlers=[
         logging.FileHandler(str(LOG_FILE), mode="a", encoding="utf-8"),
         logging.StreamHandler(sys.stderr),
     ],
 )
+# File gets DEBUG, stderr gets INFO
+logging.getLogger().handlers[0].setLevel(logging.DEBUG)
+logging.getLogger().handlers[1].setLevel(logging.INFO)
 log = logging.getLogger("autoservice-channel")
 log.info(f"=== Channel started PID={os.getpid()} ===")
 
 
-def load_credentials() -> tuple[str, str]:
-    app_id = os.environ.get("FEISHU_APP_ID")
-    app_secret = os.environ.get("FEISHU_APP_SECRET")
-    if app_id and app_secret:
-        return app_id, app_secret
-    if CREDENTIALS_PATH.exists():
-        creds = json.loads(CREDENTIALS_PATH.read_text())
-        return creds["app_id"], creds["app_secret"]
-    log.error("Missing credentials")
-    sys.exit(1)
+# -- Channel Server Client ---------------------------------------------------
 
 
-APP_ID, APP_SECRET = load_credentials()
+class ChannelClient:
+    """WebSocket client that connects to channel-server.py."""
 
-# -- Feishu Client -----------------------------------------------------------
+    def __init__(self, server_url="ws://localhost:9999", chat_ids=None,
+                 instance_id="", runtime_mode="production"):
+        self.server_url = server_url
+        self.chat_ids = chat_ids or ["*"]
+        self.instance_id = instance_id or f"channel-{os.getpid()}"
+        self.runtime_mode = runtime_mode
+        self.ws = None
+        self._message_queue: asyncio.Queue = asyncio.Queue()
 
-feishu_client = (
-    lark.Client.builder()
-    .app_id(APP_ID)
-    .app_secret(APP_SECRET)
-    .log_level(lark.LogLevel.WARNING)
-    .build()
-)
-
-# -- State -------------------------------------------------------------------
-
-_seen: set[str] = set()
-_recent_sent: set[str] = set()
-_bot_open_id: str | None = None
-_msg_counter = {"sent": 0, "received": 0}
-_user_cache: dict[str, str] = {}  # open_id → display name
-_chat_modes: dict[str, str] = {}  # chat_id → "service" | "improve"
-
-
-def _get_mode(chat_id: str) -> str:
-    return _chat_modes.get(chat_id, "service")
-
-
-def _resolve_user(open_id: str) -> str:
-    """Look up user name from cache, Feishu API, or CRM. Returns 'Name (open_id)' or just open_id."""
-    if open_id in _user_cache:
-        return _user_cache[open_id]
-
-    name = ""
-    # Try Feishu contact API
-    try:
-        req = (
-            lark.BaseRequest.builder()
-            .http_method(lark.HttpMethod.GET)
-            .uri(f"/open-apis/contact/v3/users/{open_id}?user_id_type=open_id")
-            .token_types({lark.AccessTokenType.TENANT})
-            .build()
-        )
-        resp = feishu_client.request(req)
-        if resp.success():
-            user_data = json.loads(resp.raw.content).get("data", {}).get("user", {})
-            name = user_data.get("name", "")
-            # Upsert into CRM
+    async def connect(self):
+        """Connect to channel-server with auto-reconnect."""
+        while True:
             try:
-                from autoservice.crm import upsert_contact
-                upsert_contact(
-                    open_id=open_id,
-                    name=name,
-                    phone=user_data.get("mobile", ""),
-                    email=user_data.get("email", ""),
-                    department=user_data.get("department_ids", [""])[0] if user_data.get("department_ids") else "",
-                    job_title=user_data.get("job_title", ""),
-                )
+                async with websockets.connect(self.server_url) as ws:
+                    self.ws = ws
+                    await self._register(ws)
+                    await self._message_loop(ws)
             except Exception as e:
-                log.debug(f"CRM upsert error: {e}")
-    except Exception as e:
-        log.debug(f"User lookup error for {open_id}: {e}")
+                log.warning(f"channel-server disconnected ({type(e).__name__}: {e}), retrying in 3s...")
+                self.ws = None
+                await asyncio.sleep(3)
 
-    display = f"{name} ({open_id[:12]})" if name else open_id
-    _user_cache[open_id] = display
-    return display
+    async def _register(self, ws):
+        await ws.send(json.dumps({
+            "type": "register",
+            "role": "developer" if "*" in self.chat_ids else "production",
+            "chat_ids": self.chat_ids,
+            "instance_id": self.instance_id,
+            "runtime_mode": self.runtime_mode,
+        }))
+        resp = json.loads(await ws.recv())
+        if resp.get("type") == "error":
+            log.error(f"Registration failed: {resp}")
+            raise RuntimeError(resp.get("message", "Registration failed"))
+        log.info(f"Registered with channel-server: chat_ids={self.chat_ids}")
 
-# -- Reaction helper (fire-and-forget ack) ------------------------------------
+    async def _message_loop(self, ws):
+        async for raw in ws:
+            msg = json.loads(raw)
+            if msg.get("type") == "message":
+                await self._message_queue.put(msg)
+            elif msg.get("type") == "ping":
+                await ws.send(json.dumps({"type": "pong"}))
+            elif msg.get("type") == "error":
+                log.error(f"Server error: {msg}")
 
-ACK_EMOJI = "OnIt"  # built-in Feishu emoji, means "processing"
+    async def send_reply(self, chat_id, text):
+        if self.ws:
+            await self.ws.send(json.dumps({
+                "type": "reply", "chat_id": chat_id, "text": text,
+            }))
+
+    async def send_react(self, message_id, emoji_type):
+        if self.ws:
+            await self.ws.send(json.dumps({
+                "type": "react", "message_id": message_id, "emoji_type": emoji_type,
+            }))
+
+    async def send_ux_event(self, chat_id, event, data=None):
+        if self.ws:
+            await self.ws.send(json.dumps({
+                "type": "ux_event", "chat_id": chat_id, "event": event,
+                "data": data or {},
+            }))
 
 
-def send_reaction(message_id: str, emoji_type: str = ACK_EMOJI) -> None:
-    """Add emoji reaction to a message. Non-blocking, errors logged."""
-    try:
-        req = (
-            lark.BaseRequest.builder()
-            .http_method(lark.HttpMethod.POST)
-            .uri(f"/open-apis/im/v1/messages/{message_id}/reactions")
-            .token_types({lark.AccessTokenType.TENANT})
-            .body({"reaction_type": {"emoji_type": emoji_type}})
-            .build()
-        )
-        resp = feishu_client.request(req)
-        if not resp.success():
-            log.debug(f"Reaction failed: {resp.code}")
-    except Exception as e:
-        log.debug(f"Reaction error: {e}")
+# -- Module-level state for tool handlers ------------------------------------
+
+_channel_client: ChannelClient | None = None
+_event_loop: asyncio.AbstractEventLoop | None = None
+
 
 # -- MCP Notification Injection -----------------------------------------------
 
 
 async def inject_message(write_stream, msg: dict):
     """Send a channel notification to Claude Code via the MCP write stream."""
+    # Build meta — omit None values to avoid potential issues with Claude Code
+    meta = {
+        "chat_id": msg["chat_id"],
+        "message_id": msg.get("message_id", ""),
+        "user": msg.get("user", "unknown"),
+        "user_id": msg.get("user_id", ""),
+        "runtime_mode": msg.get("runtime_mode", "production"),
+        "business_mode": msg.get("business_mode", "sales"),
+        "source": msg.get("source", "feishu"),
+        "ts": msg.get("ts", datetime.now(tz=timezone.utc).isoformat()),
+    }
+    if msg.get("routed_to"):
+        meta["routed_to"] = msg["routed_to"]
+    if msg.get("file_path"):
+        meta["file_path"] = msg["file_path"]
+    if msg.get("admin_chat_id"):
+        meta["admin_chat_id"] = msg["admin_chat_id"]
+
+    params = {"content": msg["text"], "meta": meta}
+
+    log.debug(f"inject_message params: {json.dumps(params, ensure_ascii=False)[:500]}")
+
     notification = JSONRPCNotification(
         jsonrpc="2.0",
         method="notifications/claude/channel",
-        params={
-            "content": msg["text"],
-            "meta": {
-                "chat_id": msg["chat_id"],
-                "message_id": msg["message_id"],
-                "user": msg.get("user", "unknown"),
-                "user_id": msg.get("user_id", ""),
-                "mode": msg.get("mode", "service"),
-                "ts": msg.get("ts", datetime.now(tz=timezone.utc).isoformat()),
-            },
-        },
+        params=params,
     )
-    await write_stream.send(SessionMessage(message=JSONRPCMessage(notification)))
+    session_msg = SessionMessage(message=JSONRPCMessage(notification))
+    log.debug(f"inject_message SessionMessage: {session_msg}")
+    await write_stream.send(session_msg)
     log.info(f"Injected: '{msg['text'][:60]}...' from {msg.get('user', '?')}")
-
-
-async def poll_feishu_queue(queue: asyncio.Queue, write_stream, server: Server):
-    """Consume Feishu messages from queue and inject into Claude Code."""
-    while True:
-        msg = await queue.get()
-        try:
-            _refresh_instructions(server)
-            await inject_message(write_stream, msg)
-        except Exception as e:
-            log.error(f"inject error: {e}")
-
-
-# -- Feishu WebSocket ---------------------------------------------------------
-
-
-def setup_feishu(queue: asyncio.Queue, loop: asyncio.AbstractEventLoop):
-    """Initialize Feishu WebSocket client, return connection info."""
-    global _bot_open_id
-
-    def on_message(data: P2ImMessageReceiveV1):
-        global _bot_open_id
-
-        event = data.event
-        sender = event.sender
-        message = event.message
-
-        sender_id = sender.sender_id.open_id if sender.sender_id else ""
-        sender_type = sender.sender_type or "user"
-
-        # Detect bot open_id
-        if sender_type == "app" and not _bot_open_id:
-            _bot_open_id = sender_id
-        # Skip bot's own messages
-        if sender_type == "app" or (_bot_open_id and sender_id == _bot_open_id):
-            return
-
-        msg_id = message.message_id or ""
-        if msg_id in _seen or msg_id in _recent_sent:
-            return
-        _seen.add(msg_id)
-
-        # Ack reaction -- fire-and-forget, shows "processing" on the message
-        threading.Thread(
-            target=send_reaction, args=(msg_id,), daemon=True
-        ).start()
-
-        # Parse text
-        text = ""
-        msg_type = message.message_type or "text"
-        if msg_type == "text":
-            try:
-                text = json.loads(message.content or "{}").get("text", "")
-            except Exception:
-                pass
-        elif msg_type == "post":
-            try:
-                parsed = json.loads(message.content or "{}")
-                parts = [parsed.get("title", "")]
-                for para in parsed.get("content", []):
-                    for node in para or []:
-                        if node.get("text"):
-                            parts.append(node["text"])
-                text = " ".join(p for p in parts if p)
-            except Exception:
-                pass
-        if not text:
-            text = f"({msg_type} message)"
-
-        chat_id = message.chat_id or ""
-        ts = datetime.now(tz=timezone.utc).isoformat()
-        if message.create_time:
-            try:
-                ts = datetime.fromtimestamp(
-                    int(message.create_time) / 1000, tz=timezone.utc
-                ).isoformat()
-            except Exception:
-                pass
-
-        # Resolve user name and record in CRM
-        display_name = _resolve_user(sender_id)
-
-        # Mode switching commands
-        text_stripped = text.strip().lower()
-        if text_stripped == "/improve":
-            _chat_modes[chat_id] = "improve"
-            threading.Thread(target=send_reaction, args=(msg_id, "DONE"), daemon=True).start()
-            msg = {
-                "text": "[MODE SWITCH] 已切换到 improve 模式。你现在可以：查看对话记录、管理行为规则、导入数据、分析对话质量。发送 /service 回到客服模式。",
-                "chat_id": chat_id,
-                "message_id": msg_id,
-                "user": display_name,
-                "user_id": sender_id,
-                "mode": "improve",
-                "ts": ts,
-            }
-            loop.call_soon_threadsafe(queue.put_nowait, msg)
-            return
-        elif text_stripped == "/service":
-            _chat_modes[chat_id] = "service"
-            threading.Thread(target=send_reaction, args=(msg_id, "DONE"), daemon=True).start()
-            msg = {
-                "text": "[MODE SWITCH] 已切换到 service 模式。现在以客服身份响应。",
-                "chat_id": chat_id,
-                "message_id": msg_id,
-                "user": display_name,
-                "user_id": sender_id,
-                "mode": "service",
-                "ts": ts,
-            }
-            loop.call_soon_threadsafe(queue.put_nowait, msg)
-            return
-
-        try:
-            from autoservice.crm import increment_message_count, log_message
-            increment_message_count(sender_id)
-            log_message(sender_id, chat_id, "in", text, ts)
-        except Exception as e:
-            log.debug(f"CRM log error: {e}")
-
-        msg = {
-            "text": text,
-            "chat_id": chat_id,
-            "message_id": msg_id,
-            "user": display_name,
-            "user_id": sender_id,
-            "mode": _get_mode(chat_id),
-            "ts": ts,
-        }
-        log.info(f"[feishu] {display_name}: {text[:60]}")
-        loop.call_soon_threadsafe(queue.put_nowait, msg)
-        _msg_counter["received"] += 1
-
-    handler = (
-        lark.EventDispatcherHandler.builder("", "")
-        .register_p2_im_message_receive_v1(on_message)
-        .build()
-    )
-
-    ws_client = lark.ws.Client(
-        app_id=APP_ID,
-        app_secret=APP_SECRET,
-        event_handler=handler,
-        log_level=lark.LogLevel.WARNING,
-    )
-
-    def ws_thread():
-        try:
-            ws_client.start()
-        except Exception as e:
-            log.error(f"Feishu WS error: {e}")
-
-    thread = threading.Thread(target=ws_thread, daemon=True)
-    thread.start()
-    log.info(f"Feishu WS thread started")
-
-    # Send startup message to all users in contact scope (expanding departments)
-    def send_startup():
-        time.sleep(4)
-        try:
-            import requests as _req
-            resp = _req.post(
-                "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
-                json={"app_id": APP_ID, "app_secret": APP_SECRET},
-            )
-            token = resp.json().get("tenant_access_token", "")
-            headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-            # Collect all user open_ids: direct users + department members
-            scope_resp = _req.get(
-                "https://open.feishu.cn/open-apis/contact/v3/scopes", headers=headers,
-            )
-            scope = scope_resp.json().get("data", {})
-            user_ids = set(scope.get("user_ids", []))
-
-            # Expand department members
-            for dept_id in scope.get("department_ids", []):
-                page_token = ""
-                while True:
-                    url = (f"https://open.feishu.cn/open-apis/contact/v3/users/find_by_department"
-                           f"?department_id={dept_id}&page_size=50&user_id_type=open_id")
-                    if page_token:
-                        url += f"&page_token={page_token}"
-                    dr = _req.get(url, headers=headers)
-                    dd = dr.json().get("data", {})
-                    for u in dd.get("items", []):
-                        uid = u.get("open_id", "")
-                        if uid:
-                            user_ids.add(uid)
-                    if not dd.get("has_more"):
-                        break
-                    page_token = dd.get("page_token", "")
-
-            if not user_ids:
-                log.info("No users in scope — startup msg skipped")
-                return
-
-            log.info(f"Sending startup to {len(user_ids)} user(s)")
-            for uid in user_ids:
-                body = (
-                    CreateMessageRequestBody.builder()
-                    .receive_id(uid).msg_type("text")
-                    .content(json.dumps({"text": "AutoService 已上线 ✅\n发送任意消息开始使用"}))
-                    .build()
-                )
-                req = CreateMessageRequest.builder().receive_id_type("open_id").request_body(body).build()
-                resp_msg = feishu_client.im.v1.message.create(req)
-                if resp_msg.success():
-                    _recent_sent.add(resp_msg.data.message_id)
-                    log.info(f"Startup msg sent to {uid[:20]}")
-                else:
-                    log.debug(f"Startup msg skipped {uid[:20]}: {resp_msg.code}")
-        except Exception as e:
-            log.error(f"Startup msg error: {e}")
-
-    threading.Thread(target=send_startup, daemon=True).start()
 
 
 # -- MCP Server + Tools -------------------------------------------------------
@@ -406,27 +177,60 @@ _FALLBACK_INSTRUCTIONS = (
     "then reply with the result."
 )
 _instructions_mtime: float = 0.0
+_identity_mtime: float = 0.0
+
+
+def _load_identity() -> str:
+    """Read identity.yaml and format as instructions preamble."""
+    if not IDENTITY_PATH.exists():
+        return ""
+    try:
+        import yaml
+        data = yaml.safe_load(IDENTITY_PATH.read_text(encoding="utf-8"))
+        lines = [f"## Identity\n"]
+        lines.append(f"You are **{data.get('name', 'AI Bot')}** — {data.get('description', '')}.")
+        modes = data.get("modes", {})
+        for mode_key, mode_name in modes.items():
+            lines.append(f"- In {mode_key} mode (`business_mode: {mode_key}`): introduce yourself as **{mode_name}**")
+        for rule in data.get("rules", []):
+            lines.append(f"- {rule}")
+        return "\n".join(lines) + "\n\n"
+    except Exception as e:
+        log.warning("Failed to load identity.yaml: %s", e)
+        return ""
+
+
+def _build_instructions() -> str:
+    """Combine identity + channel-instructions into full instructions text."""
+    identity = _load_identity()
+    if INSTRUCTIONS_PATH.exists():
+        base = INSTRUCTIONS_PATH.read_text(encoding="utf-8")
+    else:
+        base = _FALLBACK_INSTRUCTIONS
+    return identity + base
 
 
 def _refresh_instructions(server: Server) -> None:
-    """Reload channel-instructions.md if it changed on disk (hot-reload)."""
-    global _instructions_mtime
+    """Reload instructions if channel-instructions.md or identity.yaml changed."""
+    global _instructions_mtime, _identity_mtime
     if not INSTRUCTIONS_PATH.exists():
         return
-    mtime = INSTRUCTIONS_PATH.stat().st_mtime
-    if mtime != _instructions_mtime:
-        server.instructions = INSTRUCTIONS_PATH.read_text(encoding="utf-8")
-        _instructions_mtime = mtime
-        log.info("Instructions reloaded from disk")
+    inst_mtime = INSTRUCTIONS_PATH.stat().st_mtime
+    id_mtime = IDENTITY_PATH.stat().st_mtime if IDENTITY_PATH.exists() else 0.0
+    if inst_mtime != _instructions_mtime or id_mtime != _identity_mtime:
+        server.instructions = _build_instructions()
+        _instructions_mtime = inst_mtime
+        _identity_mtime = id_mtime
+        log.info("Instructions reloaded (identity=%s)", "yes" if id_mtime else "no")
 
 
 def create_server() -> Server:
-    global _instructions_mtime
+    global _instructions_mtime, _identity_mtime
+    text = _build_instructions()
     if INSTRUCTIONS_PATH.exists():
-        text = INSTRUCTIONS_PATH.read_text(encoding="utf-8")
         _instructions_mtime = INSTRUCTIONS_PATH.stat().st_mtime
-    else:
-        text = _FALLBACK_INSTRUCTIONS
+    if IDENTITY_PATH.exists():
+        _identity_mtime = IDENTITY_PATH.stat().st_mtime
     return Server("autoservice-channel", instructions=text)
 
 
@@ -489,56 +293,48 @@ def register_tools(server: Server, plugin_tools: list):
 def _handle_reply(args: dict) -> list[TextContent]:
     chat_id = args["chat_id"]
     text = args["text"]
-
-    body = (
-        CreateMessageRequestBody.builder()
-        .receive_id(chat_id).msg_type("text")
-        .content(json.dumps({"text": text})).build()
-    )
-    req = CreateMessageRequest.builder().receive_id_type("chat_id").request_body(body).build()
-    resp = feishu_client.im.v1.message.create(req)
-    if resp.success():
-        _recent_sent.add(resp.data.message_id)
-        _msg_counter["sent"] += 1
+    if _channel_client and _channel_client.ws and _event_loop:
+        asyncio.run_coroutine_threadsafe(
+            _channel_client.send_reply(chat_id, text), _event_loop,
+        )
         log.info(f"Reply to {chat_id}: {text[:50]}...")
-        # Log outgoing message to CRM
-        try:
-            from autoservice.crm import log_message
-            log_message("bot", chat_id, "out", text)
-        except Exception:
-            pass
-        return [TextContent(type="text", text=f"Sent. message_id={resp.data.message_id}")]
-    log.error(f"Reply failed: {resp.code} {resp.msg}")
-    return [TextContent(type="text", text=f"Failed: {resp.code} {resp.msg}")]
+        return [TextContent(type="text", text=f"Sent to {chat_id}")]
+    return [TextContent(type="text", text="Error: not connected to channel-server")]
 
 
 def _handle_react(args: dict) -> list[TextContent]:
-    req = (
-        lark.BaseRequest.builder()
-        .http_method(lark.HttpMethod.POST)
-        .uri(f"/open-apis/im/v1/messages/{args['message_id']}/reactions")
-        .token_types({lark.AccessTokenType.TENANT})
-        .body({"reaction_type": {"emoji_type": args["emoji_type"]}})
-        .build()
-    )
-    resp = feishu_client.request(req)
-    if resp.success():
+    if _channel_client and _channel_client.ws and _event_loop:
+        asyncio.run_coroutine_threadsafe(
+            _channel_client.send_react(args["message_id"], args["emoji_type"]),
+            _event_loop,
+        )
         return [TextContent(type="text", text=f"Reacted {args['emoji_type']}")]
-    return [TextContent(type="text", text=f"Failed: {resp.code} {resp.msg}")]
+    return [TextContent(type="text", text="Error: not connected to channel-server")]
 
 
 # -- Main ---------------------------------------------------------------------
 
 
 async def main():
+    global _channel_client, _event_loop
+    _event_loop = asyncio.get_running_loop()
+
     from autoservice.plugin_loader import discover
     plugins = discover("plugins")
     all_tools = []
     for p in plugins:
         all_tools.extend(p.tools)
 
-    queue: asyncio.Queue = asyncio.Queue()
-    loop = asyncio.get_running_loop()
+    chat_id_str = os.environ.get("AUTOSERVICE_CHAT_ID", "*")
+    chat_ids = [chat_id_str]
+    server_port = os.environ.get("CHANNEL_SERVER_PORT", "9999")
+    server_url = f"ws://localhost:{server_port}"
+
+    _channel_client = ChannelClient(
+        server_url=server_url,
+        chat_ids=chat_ids,
+        runtime_mode=os.environ.get("AUTOSERVICE_RUNTIME_MODE", "production"),
+    )
 
     server = create_server()
     register_tools(server, all_tools)
@@ -553,14 +349,21 @@ async def main():
     )
 
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-        # Wait for MCP init before starting Feishu WS
-        await anyio.sleep(2)
-        setup_feishu(queue, loop)
+        async def consume_messages():
+            while True:
+                msg = await _channel_client._message_queue.get()
+                log.info(f"consume_messages: got msg type={msg.get('type')} chat_id={msg.get('chat_id')} source={msg.get('source')} text={msg.get('text','')[:40]}")
+                try:
+                    _refresh_instructions(server)
+                    await inject_message(write_stream, msg)
+                except Exception as e:
+                    log.error(f"inject error: {e}")
 
         try:
             async with anyio.create_task_group() as tg:
                 tg.start_soon(server.run, read_stream, write_stream, init_opts)
-                tg.start_soon(poll_feishu_queue, queue, write_stream, server)
+                tg.start_soon(_channel_client.connect)
+                tg.start_soon(consume_messages)
         except Exception as e:
             log.error(f"Task group error: {e}")
 

@@ -1,0 +1,30 @@
+flows:
+  - id: identify-customer-type
+    name: 识别客户类型
+    tags: [customer, identification, gate]
+    triggers: ["客户类型", "新客户还是老客户", "识别", "判断用户"]
+
+  - id: new-customer-lead
+    name: 新客户信息收集
+    tags: [customer, lead, collection, gate]
+    triggers: ["收集信息", "lead", "姓名", "公司", "邮箱", "电话", "新客户"]
+
+  - id: existing-customer-verify
+    name: 老客户身份验证
+    tags: [customer, existing, verification, gate]
+    triggers: ["验证身份", "老客户", "账户", "account ID", "existing"]
+
+  - id: kb-query-routing
+    name: 知识库查询路由
+    tags: [kb, query, routing, domain]
+    triggers: ["产品问题", "价格", "DID", "功能", "知识库", "查询", "路由"]
+
+  - id: subagent-orchestration
+    name: 子代理编排
+    tags: [subagent, pipeline, kb, copywriting, review]
+    triggers: ["子代理", "产品查询", "回答", "KB搜索", "copywriting", "reviewer"]
+
+  - id: escalation
+    name: 转接人工
+    tags: [escalation, human, transfer, handoff]
+    triggers: ["转接", "人工", "投诉", "billing", "技术故障", "转人工", "escalation"]

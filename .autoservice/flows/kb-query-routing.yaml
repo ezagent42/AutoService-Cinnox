@@ -1,0 +1,55 @@
+id: kb-query-routing
+name: 知识库查询路由
+description: 运行 route_query.py 判断查询领域，处理歧义后路由到对应子代理
+tags: [kb, query, routing, domain]
+
+entry: run_router
+exits:
+  - node: route_product
+    type: handoff
+    next_flow: subagent-orchestration
+  - node: route_region
+    type: handoff
+    next_flow: subagent-orchestration
+
+nodes:
+  - id: run_router
+    label: 执行 route_query.py
+    type: process
+    note: 解析用户问题，返回 domain / region / ambiguous / is_glossary_only
+
+  - id: is_ambiguous
+    label: 结果模糊？
+    type: decision
+    condition: route_query 返回 ambiguous=true
+
+  - id: ask_clarify
+    label: 询问澄清问题
+    type: action
+    note: 根据 clarify_message 向用户提出一个澄清问题（域/地区/号码类型）
+
+  - id: route_product
+    label: → product-query 子代理
+    type: exit
+    note: domain=contact_center 或 ai_sales_bot
+
+  - id: route_region
+    label: → region-query 子代理
+    type: exit
+    note: domain=global_telecom
+
+edges:
+  - from: run_router
+    to: is_ambiguous
+  - from: is_ambiguous
+    to: ask_clarify
+    label: ambiguous=true
+  - from: ask_clarify
+    to: run_router
+    label: 用户回答后重新路由
+  - from: is_ambiguous
+    to: route_product
+    label: domain=contact_center 或 ai_sales_bot
+  - from: is_ambiguous
+    to: route_region
+    label: domain=global_telecom

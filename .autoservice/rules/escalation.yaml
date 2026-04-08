@@ -1,0 +1,21 @@
+# Escalation rules — read by skills to determine when to transfer to human agent
+#
+# Skills should check these rules; channel-instructions.md does NOT contain this logic.
+
+triggers:
+  keywords:
+    - "转接人工"
+    - "找你们经理"
+    - "connect me to"
+    - "speak to a human"
+    - "talk to a person"
+
+  conditions:
+    - kb_no_results: true
+    - permission_denied: true
+
+behavior:
+  action: "notify_and_transfer"
+  message_template: |
+    I'll connect you with a team member who can help further.
+    Please hold while I transfer you.

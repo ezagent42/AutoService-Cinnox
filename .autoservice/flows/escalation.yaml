@@ -1,0 +1,65 @@
+id: escalation
+name: 转接人工
+description: 检查转接触发条件，安全用语提议转接，客户确认后执行 handoff
+tags: [escalation, human, transfer, handoff]
+
+entry: check_trigger
+exits:
+  - node: exit_handoff
+    type: resolve
+  - node: exit_resolve
+    type: resolve
+
+nodes:
+  - id: check_trigger
+    label: 检查转接触发条件
+    type: process
+    note: 判断触发类型：billing / complaint / kb-empty / explicit-request / custom-quote / cancellation
+
+  - id: is_explicit_request
+    label: 客户直接要求转人工？
+    type: decision
+    condition: 用户明确说 "transfer" / "human agent" / "speak to someone"
+
+  - id: propose_escalation
+    label: 提议转接（安全用语）
+    type: action
+    note: 使用不含触发词的安全短语，如 "Would you like me to arrange that?"
+
+  - id: customer_confirmed
+    label: 客户确认？
+    type: decision
+    condition: 客户回复 yes / sure / please / go ahead
+
+  - id: trigger_handoff
+    label: 发送触发短语执行转接
+    type: action
+    note: "Connecting you with [team] now. They'll be with you shortly!"
+
+  - id: exit_handoff
+    label: 转接完成
+    type: exit
+
+  - id: exit_resolve
+    label: 客户拒绝转接，继续对话
+    type: exit
+
+edges:
+  - from: check_trigger
+    to: is_explicit_request
+  - from: is_explicit_request
+    to: trigger_handoff
+    label: 是（TC-F2 立即转接）
+  - from: is_explicit_request
+    to: propose_escalation
+    label: 否（两步转接）
+  - from: propose_escalation
+    to: customer_confirmed
+  - from: customer_confirmed
+    to: trigger_handoff
+    label: 客户确认
+  - from: customer_confirmed
+    to: exit_resolve
+    label: 客户拒绝
+  - from: trigger_handoff
+    to: exit_handoff

@@ -202,7 +202,7 @@
         inUse: (mins) => `\u6b64\u8bbf\u95ee\u7801\u6b63\u5728\u4f7f\u7528\u4e2d\u3002\n\u7ea6 ${mins} \u5206\u949f\u65e0\u64cd\u4f5c\u540e\u81ea\u52a8\u91ca\u653e\u3002`,
       }
     };
-    let lang = localStorage.getItem('autoservice_lang') || 'en';
+    let lang = localStorage.getItem('cinnox_lang') || 'en';
     function tl(k) { return (L[lang] || L.en)[k] || L.en[k]; }
     function applyLang() {
       document.getElementById('lang-btn').textContent = tl('langBtn');
@@ -213,7 +213,7 @@
     }
     function toggleLang() {
       lang = lang === 'en' ? 'zh' : 'en';
-      localStorage.setItem('autoservice_lang', lang);
+      localStorage.setItem('cinnox_lang', lang);
       applyLang();
       fetchLoginVersion();
     }
@@ -250,9 +250,9 @@
 
         if (res.ok) {
           const data = await res.json();
-          sessionStorage.setItem('autoservice_token',      data.token);
-          sessionStorage.setItem('autoservice_expires_at', data.expires_at);
-          sessionStorage.setItem('autoservice_label',      data.label || '');
+          sessionStorage.setItem('cinnox_token',      data.token);
+          sessionStorage.setItem('cinnox_expires_at', data.expires_at);
+          sessionStorage.setItem('cinnox_label',      data.label || '');
           window.location.href = '/chat';
         } else if (res.status === 409) {
           const err = await res.json().catch(() => ({}));

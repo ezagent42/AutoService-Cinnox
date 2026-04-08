@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CINNOX Flow Explorer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #ffffff; color: #1e293b; }
+header { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+header h1 { font-size: 18px; font-weight: 600; }
+header a { font-size: 13px; color: #64748b; text-decoration: none; }
+header a:hover { color: #3b82f6; }
+.canvas-container { height: 60vh; overflow: auto; border-bottom: 1px solid #e2e8f0; background: #fafbfc; position: relative; }
+.canvas-container svg { display: block; }
+.bottom-panels { display: flex; height: 35vh; }
+.panel { flex: 1; padding: 16px; overflow-y: auto; }
+.panel:first-child { border-right: 1px solid #e2e8f0; }
+.panel h3 { font-size: 14px; margin-bottom: 12px; color: #64748b; }
+textarea { width: 100%; height: 60px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px; font-size: 13px; resize: vertical; font-family: inherit; }
+.mark-btn { padding: 4px 10px; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; font-size: 13px; background: white; margin-right: 6px; }
+.mark-btn.active { border-color: #3b82f6; background: #eff6ff; }
+.mark-buttons { margin-top: 8px; display: flex; gap: 4px; }
+.copy-btn { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.copy-btn:hover { background: #2563eb; }
+#prompt-output { white-space: pre-wrap; font-size: 13px; line-height: 1.6; min-height: 100px; background: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 12px; }
+.node-detail-label { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.node-detail-type { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+.node-detail-note { font-size: 13px; color: #475569; margin-bottom: 12px; line-height: 1.5; }
+.annotation-label { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+.empty-state { color: #94a3b8; font-size: 13px; line-height: 1.6; }
+.flow-section-label { font-size: 13px; font-weight: 600; fill: #475569; }
+svg .node-group { cursor: grab; }
+svg .node-group:active { cursor: grabbing; }
+svg .node-group text { pointer-events: none; user-select: none; }
+svg .edge-label { font-size: 11px; fill: #64748b; }
+.prompt-actions { display: flex; gap: 8px; align-items: center; }
+.prompt-actions .copied-msg { font-size: 12px; color: #10b981; opacity: 0; transition: opacity 0.2s; }
+.prompt-actions .copied-msg.show { opacity: 1; }
+.meta-line { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+</style>
+<script>
+{{DAGRE_JS}}
+</script>
+</head>
+<body>
+
+<header>
+  <h1>&#128269; CINNOX Flow Explorer</h1>
+  <a href="javascript:history.back()">&#8592; &#36820;&#22238;&#21015;&#34920;</a>
+</header>
+
+<div class="canvas-container" id="canvas-container">
+  <svg id="flow-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<div class="bottom-panels">
+  <div class="panel" id="detail-panel">
+    <h3>&#128221; &#33410;&#28857;&#35814;&#24773;</h3>
+    <div id="detail-content">
+      <p class="empty-state">&#28857;&#20987;&#22270;&#20013;&#33410;&#28857;&#26597;&#30475;&#35814;&#24773;</p>
+    </div>
+  </div>
+  <div class="panel" id="prompt-panel">
+    <h3>&#128172; &#35752;&#35770;</h3>
+    <div id="prompt-output"></div>
+    <div class="prompt-actions">
+      <button class="copy-btn" id="copy-btn" onclick="copyPrompt()">&#22797;&#21046; Prompt</button>
+      <span class="copied-msg" id="copied-msg">Copied!</span>
+    </div>
+    <p class="meta-line">&#29983;&#25104;&#20110;: {{GENERATED_AT}}</p>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- Data injected by the explain skill ---
+  var flowData = {{FLOW_DATA}};
+  var query = "{{QUERY}}";
+
+  // --- State ---
+  var state = {
+    marks: {},        // nodeId -> { mark: 'ok'|'warn'|'error', annotation: '' }
+    selectedNode: null,
+    expandedHandoffs: {}, // nodeId -> true
+    dragState: null
+  };
+
+  // Node style config
+  var NODE_STYLES = {
+    process:  { fill: '#3b82f6', width: 160, height: 40, rx: 8 },
+    decision: { fill: '#f59e0b', width: 160, height: 40 },
+    action:   { fill: '#10b981', width: 160, height: 40 },
+    exit:     { fill: '#6b7280', r: 20 }
+  };
+
+  var EDGE_COLOR = '#374151';
+  var FLOW_PADDING = 80;
+  var FLOW_HEADER_HEIGHT = 30;
+  var MAX_HANDOFF_DEPTH = 3;
+
+  // --- SVG helpers ---
+  function svgEl(tag, attrs, parent) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    if (attrs) {
+      for (var k in attrs) {
+        if (attrs.hasOwnProperty(k)) el.setAttribute(k, attrs[k]);
+      }
+    }
+    if (parent) parent.appendChild(el);
+    return el;
+  }
+
+  function svgText(x, y, text, attrs, parent) {
+    var merged = Object.assign({ x: x, y: y, 'text-anchor': 'middle', 'dominant-baseline': 'central', fill: 'white', 'font-size': '12', 'font-family': 'system-ui, sans-serif' }, attrs || {});
+    var el = svgEl('text', merged, parent);
+    // Truncate long labels
+    var maxLen = 14;
+    var display = text.length > maxLen ? text.slice(0, maxLen - 1) + '\u2026' : text;
+    el.textContent = display;
+    return el;
+  }
+
+  // --- Dagre layout for a single flow ---
+  function layoutFlow(flow) {
+    var g = new dagre.graphlib.Graph();
+    g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 80, marginx: 20, marginy: 20 });
+    g.setDefaultEdgeLabel(function() { return {}; });
+
+    flow.nodes.forEach(function(n) {
+      var type = n.type || 'process';
+      if (type === 'exit') {
+        g.setNode(n.id, { label: n.label || n.id, width: 40, height: 40, type: type });
+      } else if (type === 'decision') {
+        g.setNode(n.id, { label: n.label || n.id, width: 180, height: 50, type: type });
+      } else {
+        g.setNode(n.id, { label: n.label || n.id, width: 160, height: 40, type: type });
+      }
+    });
+
+    flow.edges.forEach(function(e) {
+      g.setEdge(e.from, e.to, { label: e.label || '' });
+    });
+
+    dagre.layout(g);
+    return g;
+  }
+
+  // --- Build node lookup from all flows ---
+  function buildNodeLookup(flows) {
+    var lookup = {};
+    flows.forEach(function(f) {
+      f.nodes.forEach(function(n) {
+        lookup[n.id] = Object.assign({}, n, { flowId: f.id, flowName: f.name });
+      });
+    });
+    return lookup;
+  }
+
+  // --- Render all flows into SVG ---
+  function renderFlows(flows) {
+    var svg = document.getElementById('flow-svg');
+    svg.innerHTML = '';
+
+    // Define arrowhead marker
+    var defs = svgEl('defs', {}, svg);
+    var marker = svgEl('marker', {
+      id: 'arrowhead', viewBox: '0 0 10 7', refX: '10', refY: '3.5',
+      markerWidth: '8', markerHeight: '6', orient: 'auto-start-reverse', fill: EDGE_COLOR
+    }, defs);
+    svgEl('polygon', { points: '0 0, 10 3.5, 0 7' }, marker);
+
+    var totalOffsetX = 0;
+    var maxHeight = 0;
+
+    flows.forEach(function(flow, fi) {
+      var g = layoutFlow(flow);
+      var graph = g.graph();
+      var gw = graph.width || 300;
+      var gh = graph.height || 200;
+
+      // Flow group with offset
+      var flowGroup = svgEl('g', { transform: 'translate(' + totalOffsetX + ', 0)' }, svg);
+      flowGroup.dataset.flowId = flow.id;
+
+      // Flow header
+      svgText(gw / 2, 14, flow.name, { fill: '#475569', 'font-size': '13', 'font-weight': '600' }, flowGroup);
+
+      // Content group offset below header
+      var contentGroup = svgEl('g', { transform: 'translate(0, ' + FLOW_HEADER_HEIGHT + ')' }, flowGroup);
+
+      // Render edges first (behind nodes)
+      g.edges().forEach(function(e) {
+        var edge = g.edge(e);
+        if (!edge.points || edge.points.length < 2) return;
+        var d = 'M ' + edge.points.map(function(p) { return p.x + ' ' + p.y; }).join(' L ');
+        svgEl('path', {
+          d: d, stroke: EDGE_COLOR, 'stroke-width': '1.5', fill: 'none', 'marker-end': 'url(#arrowhead)'
+        }, contentGroup);
+        // Edge label
+        if (edge.label) {
+          var mid = edge.points[Math.floor(edge.points.length / 2)];
+          svgText(mid.x, mid.y - 8, edge.label, { fill: '#64748b', 'font-size': '11', class: 'edge-label' }, contentGroup);
+        }
+      });
+
+      // Render nodes
+      g.nodes().forEach(function(nid) {
+        var nd = g.node(nid);
+        var origNode = findNodeInFlow(flow, nid);
+        var type = nd.type || 'process';
+        var nodeGroup = svgEl('g', {
+          class: 'node-group',
+          transform: 'translate(' + nd.x + ', ' + nd.y + ')',
+          'data-node-id': nid,
+          'data-flow-id': flow.id
+        }, contentGroup);
+
+        // Store position data
+        nodeGroup._dagreX = nd.x;
+        nodeGroup._dagreY = nd.y;
+        nodeGroup._flowOffsetX = totalOffsetX;
+
+        if (type === 'exit') {
+          var r = 20;
+          svgEl('circle', { cx: 0, cy: 0, r: r, fill: NODE_STYLES.exit.fill, stroke: 'none' }, nodeGroup);
+          // Handoff indicator
+          if (origNode && origNode.exit_type === 'handoff') {
+            svgEl('circle', { cx: 0, cy: 0, r: r, fill: 'none', stroke: '#374151', 'stroke-width': '2', 'stroke-dasharray': '4,3' }, nodeGroup);
+            // Expand button
+            svgText(r + 8, 0, '\u25B6', { fill: '#3b82f6', 'font-size': '14', cursor: 'pointer', class: 'handoff-expand', 'data-node-id': nid, 'pointer-events': 'all' }, nodeGroup);
+          }
+          svgText(0, 0, nd.label, { 'font-size': '10' }, nodeGroup);
+        } else if (type === 'decision') {
+          // Diamond via rotated rect
+          var w = 80, h = 40;
+          svgEl('rect', {
+            x: -w / 2, y: -h / 2, width: w, height: h,
+            fill: NODE_STYLES.decision.fill, rx: 4,
+            transform: 'rotate(45)'
+          }, nodeGroup);
+          // Wider clickable overlay (invisible)
+          svgEl('rect', {
+            x: -nd.width / 2, y: -nd.height / 2, width: nd.width, height: nd.height,
+            fill: 'transparent'
+          }, nodeGroup);
+          svgText(0, 0, nd.label, { 'font-size': '12' }, nodeGroup);
+        } else {
+          // process or action
+          var style = NODE_STYLES[type] || NODE_STYLES.process;
+          var attrs = {
+            x: -nd.width / 2, y: -nd.height / 2,
+            width: nd.width, height: nd.height,
+            fill: style.fill
+          };
+          if (style.rx) attrs.rx = style.rx;
+          svgEl('rect', attrs, nodeGroup);
+          svgText(0, 0, nd.label, {}, nodeGroup);
+        }
+
+        // Mark indicator (if any)
+        updateNodeMark(nodeGroup, nid);
+
+        // Event listeners
+        nodeGroup.addEventListener('mousedown', onNodeMouseDown);
+        nodeGroup.addEventListener('click', function(ev) {
+          ev.stopPropagation();
+          selectNode(nid);
+        });
+      });
+
+      // Separator line between flows (except last)
+      if (fi < flows.length - 1) {
+        var sepX = totalOffsetX + gw + FLOW_PADDING / 2;
+        svgEl('line', {
+          x1: sepX, y1: 10, x2: sepX, y2: Math.max(gh + FLOW_HEADER_HEIGHT, 300),
+          stroke: '#e2e8f0', 'stroke-width': '1', 'stroke-dasharray': '6,4'
+        }, svg);
+      }
+
+      totalOffsetX += gw + FLOW_PADDING;
+      maxHeight = Math.max(maxHeight, gh + FLOW_HEADER_HEIGHT + 20);
+    });
+
+    svg.setAttribute('width', totalOffsetX);
+    svg.setAttribute('height', maxHeight);
+  }
+
+  function findNodeInFlow(flow, nodeId) {
+    for (var i = 0; i < flow.nodes.length; i++) {
+      if (flow.nodes[i].id === nodeId) return flow.nodes[i];
+    }
+    return null;
+  }
+
+  function findFlowById(id) {
+    for (var i = 0; i < flowData.length; i++) {
+      if (flowData[i].id === id) return flowData[i];
+    }
+    return null;
+  }
+
+  // --- Node mark rendering ---
+  function updateNodeMark(nodeGroup, nodeId) {
+    // Remove existing mark indicator
+    var existing = nodeGroup.querySelector('.mark-indicator');
+    if (existing) existing.remove();
+
+    var info = state.marks[nodeId];
+    if (!info || !info.mark) return;
+
+    var symbols = { ok: '\u2705', warn: '\u26A0\uFE0F', error: '\u274C' };
+    var sym = symbols[info.mark] || '';
+    var el = svgText(0, -28, sym, { 'font-size': '14', fill: '#1e293b', class: 'mark-indicator' }, nodeGroup);
+    el.classList.add('mark-indicator');
+  }
+
+  // --- Drag ---
+  function onNodeMouseDown(ev) {
+    if (ev.target.classList.contains('handoff-expand')) return;
+    var group = ev.currentTarget;
+    var svg = document.getElementById('flow-svg');
+    var pt = svg.createSVGPoint();
+    pt.x = ev.clientX;
+    pt.y = ev.clientY;
+    var svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+    state.dragState = {
+      group: group,
+      startX: svgP.x,
+      startY: svgP.y,
+      origX: group._dagreX,
+      origY: group._dagreY,
+      nodeId: group.getAttribute('data-node-id'),
+      flowId: group.getAttribute('data-flow-id')
+    };
+
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
+    ev.preventDefault();
+  }
+
+  function onDragMove(ev) {
+    if (!state.dragState) return;
+    var svg = document.getElementById('flow-svg');
+    var pt = svg.createSVGPoint();
+    pt.x = ev.clientX;
+    pt.y = ev.clientY;
+    var svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+
+    var dx = svgP.x - state.dragState.startX;
+    var dy = svgP.y - state.dragState.startY;
+    var newX = state.dragState.origX + dx;
+    var newY = state.dragState.origY + dy;
+
+    state.dragState.group.setAttribute('transform', 'translate(' + newX + ', ' + newY + ')');
+    state.dragState.currentX = newX;
+    state.dragState.currentY = newY;
+  }
+
+  function onDragEnd(ev) {
+    if (!state.dragState) return;
+    var ds = state.dragState;
+    if (ds.currentX !== undefined) {
+      ds.group._dagreX = ds.currentX;
+      ds.group._dagreY = ds.currentY;
+      // Persist to localStorage
+      try {
+        var key = 'flow-pos-' + ds.flowId;
+        var positions = JSON.parse(localStorage.getItem(key) || '{}');
+        positions[ds.nodeId] = { x: ds.currentX, y: ds.currentY };
+        localStorage.setItem(key, JSON.stringify(positions));
+      } catch(e) { /* ignore */ }
+    }
+    state.dragState = null;
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragEnd);
+  }
+
+  // --- Node selection ---
+  function selectNode(nodeId) {
+    state.selectedNode = nodeId;
+    var nodeLookup = buildNodeLookup(flowData);
+    var node = nodeLookup[nodeId];
+    if (!node) return;
+
+    var info = state.marks[nodeId] || { mark: '', annotation: '' };
+
+    var html = '<div class="node-detail-label">' + escHtml(node.label || node.id) + '</div>';
+    html += '<div class="node-detail-type">&#31867;&#22411;: ' + escHtml(node.type || 'process') + ' | &#27969;&#31243;: ' + escHtml(node.flowName) + '</div>';
+    if (node.note) {
+      html += '<div class="node-detail-note">' + escHtml(node.note) + '</div>';
+    }
+    html += '<div class="annotation-label">&#25209;&#27880;:</div>';
+    html += '<textarea id="node-annotation" placeholder="&#28155;&#21152;&#22791;&#27880;...">' + escHtml(info.annotation) + '</textarea>';
+    html += '<div class="mark-buttons">';
+    html += markBtn('ok', '\u2705 &#27491;&#24120;', info.mark);
+    html += markBtn('warn', '\u26A0\uFE0F &#24453;&#25913;&#36827;', info.mark);
+    html += markBtn('error', '\u274C &#38382;&#39064;', info.mark);
+    html += '</div>';
+
+    document.getElementById('detail-content').innerHTML = html;
+
+    // Bind annotation change
+    document.getElementById('node-annotation').addEventListener('input', function() {
+      if (!state.marks[nodeId]) state.marks[nodeId] = { mark: '', annotation: '' };
+      state.marks[nodeId].annotation = this.value;
+      updatePrompt();
+    });
+
+    // Bind mark buttons
+    document.querySelectorAll('.mark-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var mark = this.dataset.mark;
+        if (!state.marks[nodeId]) state.marks[nodeId] = { mark: '', annotation: '' };
+        // Toggle off if same
+        if (state.marks[nodeId].mark === mark) {
+          state.marks[nodeId].mark = '';
+        } else {
+          state.marks[nodeId].mark = mark;
+        }
+        selectNode(nodeId); // re-render detail
+        // Update SVG mark
+        var svgGroup = document.querySelector('[data-node-id="' + nodeId + '"]');
+        if (svgGroup) updateNodeMark(svgGroup, nodeId);
+        updatePrompt();
+      });
+    });
+
+    updatePrompt();
+  }
+
+  function markBtn(value, label, current) {
+    var cls = current === value ? 'mark-btn active' : 'mark-btn';
+    return '<button class="' + cls + '" data-mark="' + value + '">' + label + '</button>';
+  }
+
+  // --- Prompt generation ---
+  function updatePrompt() {
+    var el = document.getElementById('prompt-output');
+    var markedNodes = [];
+    var nodeLookup = buildNodeLookup(flowData);
+
+    for (var nid in state.marks) {
+      if (state.marks.hasOwnProperty(nid) && state.marks[nid].mark) {
+        var node = nodeLookup[nid];
+        if (node) {
+          markedNodes.push({
+            id: nid,
+            label: node.label || nid,
+            type: node.type || 'process',
+            flowName: node.flowName,
+            mark: state.marks[nid].mark,
+            annotation: state.marks[nid].annotation
+          });
+        }
+      }
+    }
+
+    if (markedNodes.length === 0) {
+      el.textContent = '\u8BF7\u89E3\u91CA\u201C' + query + '\u201D\u8FD9\u4E2A\u573A\u666F\u7684\u6574\u4F53\u5904\u7406\u6D41\u7A0B\u548C\u8BBE\u8BA1\u601D\u8DEF\u3002';
+      return;
+    }
+
+    var markLabels = { ok: '\u2705 \u6B63\u5E38', warn: '\u26A0\uFE0F \u5F85\u6539\u8FDB', error: '\u274C \u95EE\u9898' };
+    var lines = ['\u5173\u4E8E\u201C' + query + '\u201D\u573A\u666F\uFF0C\u8BF7\u91CD\u70B9\u8BA8\u8BBA\u4EE5\u4E0B\u6807\u8BB0\u7684\u8282\u70B9\uFF1A\n'];
+
+    markedNodes.forEach(function(mn) {
+      var line = '- [' + markLabels[mn.mark] + '] ' + mn.label + ' (' + mn.type + ', \u6D41\u7A0B: ' + mn.flowName + ')';
+      if (mn.annotation) {
+        line += '\n  \u5907\u6CE8: ' + mn.annotation;
+      }
+      lines.push(line);
+    });
+
+    lines.push('\n\u8BF7\u9488\u5BF9\u4E0A\u8FF0\u6807\u8BB0\u7684\u8282\u70B9\uFF0C\u5206\u6790\u53EF\u80FD\u7684\u6539\u8FDB\u65B9\u6848\u548C\u6CE8\u610F\u4E8B\u9879\u3002');
+    el.textContent = lines.join('\n');
+  }
+
+  // --- Copy prompt ---
+  window.copyPrompt = function() {
+    var text = document.getElementById('prompt-output').textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      var msg = document.getElementById('copied-msg');
+      msg.classList.add('show');
+      setTimeout(function() { msg.classList.remove('show'); }, 1500);
+    });
+  };
+
+  // --- Handoff expansion ---
+  function setupHandoffListeners() {
+    document.getElementById('flow-svg').addEventListener('click', function(ev) {
+      var target = ev.target;
+      if (!target.classList || !target.classList.contains('handoff-expand')) return;
+      var nodeId = target.getAttribute('data-node-id');
+      if (!nodeId) return;
+      ev.stopPropagation();
+      expandHandoff(nodeId, 0, new Set());
+    });
+  }
+
+  function expandHandoff(nodeId, depth, visited) {
+    if (depth >= MAX_HANDOFF_DEPTH) return;
+
+    var nodeLookup = buildNodeLookup(flowData);
+    var node = nodeLookup[nodeId];
+    if (!node || !node.next_flow) return;
+
+    if (visited.has(node.next_flow) || state.expandedHandoffs[nodeId]) {
+      // Show cycle annotation
+      var svgGroup = document.querySelector('[data-node-id="' + nodeId + '"]');
+      if (svgGroup) {
+        svgText(0, 30, '(\u5FAA\u73AF)', { fill: '#ef4444', 'font-size': '11' }, svgGroup);
+      }
+      return;
+    }
+
+    var targetFlow = findFlowById(node.next_flow);
+    if (!targetFlow) return;
+
+    visited.add(node.next_flow);
+    state.expandedHandoffs[nodeId] = true;
+
+    // Layout sub-flow
+    var g = layoutFlow(targetFlow);
+    var graph = g.graph();
+
+    // Find the exit node's SVG group to position relative to it
+    var svgGroup = document.querySelector('[data-node-id="' + nodeId + '"]');
+    if (!svgGroup) return;
+    var parentContent = svgGroup.parentNode;
+
+    var baseX = svgGroup._dagreX || 0;
+    var baseY = (svgGroup._dagreY || 0) + 50;
+
+    var subGroup = svgEl('g', {
+      transform: 'translate(' + (baseX - (graph.width || 200) / 2) + ', ' + baseY + ')',
+      class: 'expanded-subflow'
+    }, parentContent);
+
+    // Sub-flow border
+    svgEl('rect', {
+      x: -10, y: -10, width: (graph.width || 200) + 20, height: (graph.height || 100) + 30,
+      fill: 'none', stroke: '#cbd5e1', 'stroke-width': '1', 'stroke-dasharray': '4,3', rx: 6
+    }, subGroup);
+
+    // Sub-flow label
+    svgText((graph.width || 200) / 2, -2, targetFlow.name, { fill: '#64748b', 'font-size': '11', 'font-weight': '600' }, subGroup);
+
+    var innerGroup = svgEl('g', { transform: 'translate(0, 15)' }, subGroup);
+
+    // Render edges
+    g.edges().forEach(function(e) {
+      var edge = g.edge(e);
+      if (!edge.points || edge.points.length < 2) return;
+      var d = 'M ' + edge.points.map(function(p) { return p.x + ' ' + p.y; }).join(' L ');
+      svgEl('path', { d: d, stroke: EDGE_COLOR, 'stroke-width': '1', fill: 'none', 'marker-end': 'url(#arrowhead)' }, innerGroup);
+    });
+
+    // Render nodes
+    g.nodes().forEach(function(nid) {
+      var nd = g.node(nid);
+      var origNode = findNodeInFlow(targetFlow, nid);
+      var type = nd.type || 'process';
+      var ng = svgEl('g', {
+        class: 'node-group',
+        transform: 'translate(' + nd.x + ', ' + nd.y + ')',
+        'data-node-id': nid,
+        'data-flow-id': targetFlow.id
+      }, innerGroup);
+
+      ng._dagreX = nd.x;
+      ng._dagreY = nd.y;
+
+      if (type === 'exit') {
+        svgEl('circle', { cx: 0, cy: 0, r: 16, fill: NODE_STYLES.exit.fill }, ng);
+        if (origNode && origNode.exit_type === 'handoff') {
+          svgEl('circle', { cx: 0, cy: 0, r: 16, fill: 'none', stroke: '#374151', 'stroke-width': '1.5', 'stroke-dasharray': '3,2' }, ng);
+          var expandEl = svgText(20, 0, '\u25B6', { fill: '#3b82f6', 'font-size': '12', cursor: 'pointer', class: 'handoff-expand', 'data-node-id': nid, 'pointer-events': 'all' }, ng);
+        }
+        svgText(0, 0, nd.label, { 'font-size': '9' }, ng);
+      } else if (type === 'decision') {
+        svgEl('rect', { x: -30, y: -20, width: 60, height: 40, fill: NODE_STYLES.decision.fill, rx: 3, transform: 'rotate(45)' }, ng);
+        svgEl('rect', { x: -nd.width / 2, y: -nd.height / 2, width: nd.width, height: nd.height, fill: 'transparent' }, ng);
+        svgText(0, 0, nd.label, { 'font-size': '10' }, ng);
+      } else {
+        var style = NODE_STYLES[type] || NODE_STYLES.process;
+        var attrs = { x: -nd.width / 2, y: -nd.height / 2, width: nd.width, height: nd.height, fill: style.fill };
+        if (style.rx) attrs.rx = style.rx;
+        svgEl('rect', attrs, ng);
+        svgText(0, 0, nd.label, { 'font-size': '10' }, ng);
+      }
+
+      ng.addEventListener('mousedown', onNodeMouseDown);
+      ng.addEventListener('click', function(ev) { ev.stopPropagation(); selectNode(nid); });
+    });
+
+    // Grow SVG if needed
+    var svg = document.getElementById('flow-svg');
+    var currentH = parseInt(svg.getAttribute('height')) || 0;
+    var neededH = baseY + (graph.height || 100) + 80;
+    if (neededH > currentH) svg.setAttribute('height', neededH);
+  }
+
+  // --- Utility ---
+  function escHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // --- Init ---
+  window.initApp = function(flows, q) {
+    flowData = flows;
+    query = q;
+    renderFlows(flowData);
+    setupHandoffListeners();
+    updatePrompt();
+
+    // Initial guide
+    document.getElementById('prompt-output').insertAdjacentHTML('beforebegin',
+      '<p class="empty-state" id="guide-text" style="margin-bottom:8px">\u70B9\u51FB\u8282\u70B9\u67E5\u770B\u8BE6\u60C5\uFF0C\u6807\u8BB0\u540E\u751F\u6210\u8BA8\u8BBA prompt</p>');
+  };
+
+  // Auto-init with template data
+  if (flowData && Array.isArray(flowData) && flowData.length > 0) {
+    document.addEventListener('DOMContentLoaded', function() {
+      initApp(flowData, query);
+    });
+  }
+})();
+</script>
+
+<!-- Uncomment for standalone testing:
+<script>
+var FLOW_DATA = [
+  {
+    "id": "inquiry",
+    "name": "客户咨询流程",
+    "entry": "greet",
+    "exits": ["resolved", "escalate"],
+    "nodes": [
+      { "id": "greet", "label": "欢迎客户", "type": "process", "note": "发送欢迎消息并识别客户身份" },
+      { "id": "classify", "label": "问题分类", "type": "decision", "note": "根据关键词和意图分类问题" },
+      { "id": "lookup", "label": "查询知识库", "type": "action", "note": "从KB中检索相关答案" },
+      { "id": "respond", "label": "回复客户", "type": "process", "note": "生成并发送回复" },
+      { "id": "resolved", "label": "已解决", "type": "exit", "exit_type": "end" },
+      { "id": "escalate", "label": "转人工", "type": "exit", "exit_type": "handoff", "next_flow": "human_service" }
+    ],
+    "edges": [
+      { "from": "greet", "to": "classify" },
+      { "from": "classify", "to": "lookup", "label": "技术问题" },
+      { "from": "classify", "to": "respond", "label": "简单问题" },
+      { "from": "lookup", "to": "respond" },
+      { "from": "respond", "to": "resolved", "label": "满意" },
+      { "from": "respond", "to": "escalate", "label": "不满意" }
+    ]
+  },
+  {
+    "id": "human_service",
+    "name": "人工服务流程",
+    "entry": "assign",
+    "exits": ["done"],
+    "nodes": [
+      { "id": "assign", "label": "分配客服", "type": "process", "note": "根据技能组分配客服人员" },
+      { "id": "chat", "label": "人工对话", "type": "action", "note": "客服与客户实时沟通" },
+      { "id": "done", "label": "结束", "type": "exit", "exit_type": "end" }
+    ],
+    "edges": [
+      { "from": "assign", "to": "chat" },
+      { "from": "chat", "to": "done" }
+    ]
+  }
+];
+var QUERY = "客户咨询处理";
+initApp(FLOW_DATA, QUERY);
+</script>
+-->
+
+</body>
+</html>

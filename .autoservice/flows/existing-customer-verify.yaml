@@ -1,0 +1,70 @@
+id: existing-customer-verify
+name: 老客户身份验证
+description: 验证老客户身份（姓名、公司、邮箱、账户ID），然后按咨询类型路由
+tags: [customer, existing, verification, gate]
+
+entry: ask_identity
+exits:
+  - node: route_product
+    type: handoff
+    next_flow: kb-query-routing
+  - node: route_billing
+    type: handoff
+    next_flow: escalation
+  - node: route_complaint
+    type: handoff
+    next_flow: escalation
+
+nodes:
+  - id: ask_identity
+    label: 请求四项身份信息
+    type: action
+    note: "请提供：姓名、公司名称、联系邮箱、Account ID"
+
+  - id: has_all_fields
+    label: 四项齐全？
+    type: decision
+    condition: 姓名 + 公司 + 邮箱 + Account ID 全部提供
+
+  - id: ask_missing
+    label: 追问缺失字段
+    type: action
+    note: 仅询问缺失的字段，单条消息发送
+
+  - id: save_identity
+    label: 保存身份信息
+    type: process
+    note: 调用 save_lead.py --type existing_customer
+
+  - id: route_product
+    label: → 产品查询
+    type: exit
+
+  - id: route_billing
+    label: → 账单/取消转接
+    type: exit
+
+  - id: route_complaint
+    label: → 投诉/技术故障转接
+    type: exit
+
+edges:
+  - from: ask_identity
+    to: has_all_fields
+  - from: has_all_fields
+    to: save_identity
+    label: 四项齐全
+  - from: has_all_fields
+    to: ask_missing
+    label: 有缺失字段
+  - from: ask_missing
+    to: has_all_fields
+  - from: save_identity
+    to: route_product
+    label: 产品/功能问题
+  - from: save_identity
+    to: route_billing
+    label: 账单/取消问题
+  - from: save_identity
+    to: route_complaint
+    label: 投诉/技术故障

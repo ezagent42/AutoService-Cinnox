@@ -1,0 +1,73 @@
+id: new-customer-lead
+name: 新客户信息收集
+description: 收集新客户联系信息（姓名、公司、邮箱、电话），确认后保存 lead
+tags: [customer, lead, collection, gate]
+
+entry: ask_all_fields
+exits:
+  - node: exit_resolve
+    type: handoff
+    next_flow: kb-query-routing
+  - node: exit_partial
+    type: resolve
+
+nodes:
+  - id: ask_all_fields
+    label: 一次性请求四项信息
+    type: action
+    note: "为了更好地为您服务，请提供以下信息：姓名、公司名称、电子邮箱和联系电话。"
+
+  - id: has_all_fields
+    label: 四项齐全？
+    type: decision
+    condition: 姓名 + 公司 + 邮箱 + 电话全部提供
+
+  - id: ask_missing
+    label: 追问缺失字段
+    type: action
+    note: 仅询问缺失的字段，单条消息发送
+
+  - id: confirm_details
+    label: 确认信息
+    type: action
+    note: "Let me confirm: Name: [X], Company: [Y], Email: [Z], Phone: [W]. Is that correct?"
+
+  - id: save_lead
+    label: 保存 Lead
+    type: process
+    note: 调用 save_lead.py --type new_customer
+
+  - id: exit_resolve
+    label: → 查询路由
+    type: exit
+
+  - id: exit_partial
+    label: 部分信息已接受，结束
+    type: exit
+
+edges:
+  - from: ask_all_fields
+    to: has_all_fields
+  - from: has_all_fields
+    to: confirm_details
+    label: 四项齐全
+  - from: has_all_fields
+    to: ask_missing
+    label: 有缺失字段
+  - from: ask_missing
+    to: has_all_fields
+  - from: has_all_fields
+    to: confirm_details
+    label: 客户拒绝提供剩余字段，接受部分信息
+  - from: confirm_details
+    to: save_lead
+    label: 客户确认正确
+  - from: confirm_details
+    to: ask_all_fields
+    label: 客户要求修改
+  - from: save_lead
+    to: exit_resolve
+    label: 客户有明确问题
+  - from: save_lead
+    to: exit_partial
+    label: 无后续问题
