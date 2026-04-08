@@ -33,6 +33,7 @@ from mcp.types import JSONRPCMessage, JSONRPCNotification, Tool, TextContent
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOG_FILE = PROJECT_ROOT / ".autoservice" / "logs" / "channel.log"
 INSTRUCTIONS_PATH = Path(__file__).parent / "channel-instructions.md"
+IDENTITY_PATH = PROJECT_ROOT / ".autoservice" / "identity.yaml"
 
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
@@ -176,27 +177,60 @@ _FALLBACK_INSTRUCTIONS = (
     "then reply with the result."
 )
 _instructions_mtime: float = 0.0
+_identity_mtime: float = 0.0
+
+
+def _load_identity() -> str:
+    """Read identity.yaml and format as instructions preamble."""
+    if not IDENTITY_PATH.exists():
+        return ""
+    try:
+        import yaml
+        data = yaml.safe_load(IDENTITY_PATH.read_text(encoding="utf-8"))
+        lines = [f"## Identity\n"]
+        lines.append(f"You are **{data.get('name', 'AI Bot')}** — {data.get('description', '')}.")
+        modes = data.get("modes", {})
+        for mode_key, mode_name in modes.items():
+            lines.append(f"- In {mode_key} mode (`business_mode: {mode_key}`): introduce yourself as **{mode_name}**")
+        for rule in data.get("rules", []):
+            lines.append(f"- {rule}")
+        return "\n".join(lines) + "\n\n"
+    except Exception as e:
+        log.warning("Failed to load identity.yaml: %s", e)
+        return ""
+
+
+def _build_instructions() -> str:
+    """Combine identity + channel-instructions into full instructions text."""
+    identity = _load_identity()
+    if INSTRUCTIONS_PATH.exists():
+        base = INSTRUCTIONS_PATH.read_text(encoding="utf-8")
+    else:
+        base = _FALLBACK_INSTRUCTIONS
+    return identity + base
 
 
 def _refresh_instructions(server: Server) -> None:
-    """Reload channel-instructions.md if it changed on disk (hot-reload)."""
-    global _instructions_mtime
+    """Reload instructions if channel-instructions.md or identity.yaml changed."""
+    global _instructions_mtime, _identity_mtime
     if not INSTRUCTIONS_PATH.exists():
         return
-    mtime = INSTRUCTIONS_PATH.stat().st_mtime
-    if mtime != _instructions_mtime:
-        server.instructions = INSTRUCTIONS_PATH.read_text(encoding="utf-8")
-        _instructions_mtime = mtime
-        log.info("Instructions reloaded from disk")
+    inst_mtime = INSTRUCTIONS_PATH.stat().st_mtime
+    id_mtime = IDENTITY_PATH.stat().st_mtime if IDENTITY_PATH.exists() else 0.0
+    if inst_mtime != _instructions_mtime or id_mtime != _identity_mtime:
+        server.instructions = _build_instructions()
+        _instructions_mtime = inst_mtime
+        _identity_mtime = id_mtime
+        log.info("Instructions reloaded (identity=%s)", "yes" if id_mtime else "no")
 
 
 def create_server() -> Server:
-    global _instructions_mtime
+    global _instructions_mtime, _identity_mtime
+    text = _build_instructions()
     if INSTRUCTIONS_PATH.exists():
-        text = INSTRUCTIONS_PATH.read_text(encoding="utf-8")
         _instructions_mtime = INSTRUCTIONS_PATH.stat().st_mtime
-    else:
-        text = _FALLBACK_INSTRUCTIONS
+    if IDENTITY_PATH.exists():
+        _identity_mtime = IDENTITY_PATH.stat().st_mtime
     return Server("autoservice-channel", instructions=text)
 
 
