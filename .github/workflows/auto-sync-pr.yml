@@ -1,0 +1,65 @@
+# .github/workflows/auto-sync-pr.yml
+# Placed in L2 repo. When main is pushed, auto-create sync PRs for registered L3 forks.
+name: Auto Sync PR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  notify-forks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+
+      - name: Create sync PRs for active forks
+        env:
+          GH_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
+        run: |
+          REGISTRY="docs/fork-registry.yaml"
+          [ ! -f "$REGISTRY" ] && { echo "No registry found"; exit 0; }
+
+          FORK_COUNT=$(yq '.forks | length' "$REGISTRY")
+          [ "$FORK_COUNT" -eq 0 ] && { echo "No forks registered"; exit 0; }
+
+          SYNCED=0
+          FAILED=0
+          SKIPPED=0
+
+          for i in $(seq 0 $((FORK_COUNT - 1))); do
+            NAME=$(yq ".forks[$i].name" "$REGISTRY")
+            REPO=$(yq ".forks[$i].repo" "$REGISTRY")
+            STATUS=$(yq ".forks[$i].status" "$REGISTRY")
+
+            [ "$STATUS" != "active" ] && {
+              echo "Skipping $NAME (status: $STATUS)"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            }
+
+            echo "Syncing $NAME ($REPO)..."
+
+            # Attempt fast-forward merge via API
+            if gh api "repos/$REPO/merges" \
+                -f base=main \
+                -f head="${{ github.repository }}:main" \
+                -f commit_message="sync: auto-merge upstream/main" \
+                --method POST 2>/dev/null; then
+              echo "  OK: $NAME synced"
+              SYNCED=$((SYNCED + 1))
+            else
+              echo "  WARNING: $NAME has conflicts or permission issue"
+              FAILED=$((FAILED + 1))
+              # Fork maintainer should run 'make sync' manually
+            fi
+          done
+
+          echo ""
+          echo "Summary: $SYNCED synced, $FAILED failed, $SKIPPED skipped"

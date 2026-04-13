@@ -1,4 +1,4 @@
-.PHONY: setup run-channel run-web run-server check e2e-web e2e-feishu pool-status pool-start pool-test
+.PHONY: setup run-channel run-web run-server check e2e-web e2e-feishu pool-status pool-start pool-test sync sync-dry sync-status sync-all refine
 
 # --- Setup ---
 # Create symlinks from .claude/ to top-level dirs, discover plugin skills,
@@ -66,3 +66,19 @@ check:
 		[ -L "$${link%/}" ] && { echo "  plugin skill: $${link%/}"; found=$$((found+1)); }; \
 	done; \
 	echo "Found $$found plugin skill(s)."
+
+# --- Sync & Refine ---
+sync:
+	@bash scripts/sync.sh
+
+sync-dry:
+	@bash scripts/sync.sh --dry-run
+
+sync-status:
+	@bash scripts/sync-status.sh
+
+sync-all:
+	@bash scripts/sync-all.sh
+
+refine:
+	@bash scripts/refine.sh
