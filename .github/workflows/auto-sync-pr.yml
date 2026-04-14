@@ -1,0 +1,138 @@
+# .github/workflows/auto-sync-pr.yml
+# Placed in L2 repo. When main is pushed, auto-sync registered L3 forks.
+#
+# Flow:
+#   1. Read fork-registry.yaml for active forks
+#   2. Attempt fast-forward merge via GitHub API
+#   3. On conflict → create sync PR in the fork repo
+#   4. Run basic test verification on the merged result
+name: Auto Sync PR
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync-forks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for diff-based testing
+
+      - name: Install yq
+        run: |
+          wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+
+      - name: Sync all active forks
+        env:
+          GH_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
+        run: |
+          REGISTRY="docs/fork-registry.yaml"
+          [ ! -f "$REGISTRY" ] && { echo "No registry found"; exit 0; }
+
+          FORK_COUNT=$(yq '.forks | length' "$REGISTRY")
+          [ "$FORK_COUNT" -eq 0 ] && { echo "No forks registered"; exit 0; }
+
+          SYNCED=0
+          FAILED=0
+          SKIPPED=0
+
+          for i in $(seq 0 $((FORK_COUNT - 1))); do
+            NAME=$(yq ".forks[$i].name" "$REGISTRY")
+            REPO=$(yq ".forks[$i].repo" "$REGISTRY")
+            STATUS=$(yq ".forks[$i].status" "$REGISTRY")
+
+            [ "$STATUS" != "active" ] && {
+              echo "Skipping $NAME (status: $STATUS)"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            }
+
+            echo "Syncing $NAME ($REPO)..."
+
+            # Attempt fast-forward merge via API
+            if gh api "repos/$REPO/merges" \
+                -f base=main \
+                -f head="${{ github.repository }}:main" \
+                -f commit_message="sync: auto-merge upstream/main" \
+                --method POST 2>/dev/null; then
+              echo "  OK: $NAME synced (fast-forward)"
+              SYNCED=$((SYNCED + 1))
+            else
+              echo "  CONFLICT: $NAME needs manual merge"
+              # Create a sync PR for the fork maintainer
+              gh pr create \
+                --repo "$REPO" \
+                --title "sync: merge upstream/main ($(date +%Y-%m-%d))" \
+                --body "$(cat <<'PR_EOF'
+          ## Automated Sync from Upstream
+
+          This PR was auto-created because a fast-forward merge was not possible.
+
+          **Action required:** Resolve conflicts and merge.
+
+          ### Conflict resolution tips
+          - `socialware/` and `channels/` (L1): prefer upstream version
+          - `autoservice/` (L2): prefer upstream version
+          - `plugins/<tenant>/` (L3): keep your local version
+
+          After merging, run tests:
+          ```bash
+          make sync-status   # verify sync state
+          uv run pytest tests/ -v   # run test suite
+          ```
+          PR_EOF
+          )" \
+                --base main \
+                --head "${{ github.repository }}:main" 2>/dev/null || {
+                  echo "    (PR creation failed — check permissions)"
+                }
+              FAILED=$((FAILED + 1))
+            fi
+          done
+
+          echo ""
+          echo "Summary: $SYNCED synced, $FAILED need manual merge, $SKIPPED skipped"
+
+          # Fail the workflow if any fork had conflicts
+          [ "$FAILED" -gt 0 ] && exit 1 || true
+
+  # Post-sync verification: run tests on the L2 repo itself
+  verify:
+    runs-on: ubuntu-latest
+    needs: sync-forks
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
+
+      - name: Run unit tests
+        run: |
+          uv run pytest tests/ -v --tb=short -x
+
+      - name: Generate sync bridge artifact
+        run: |
+          # Generate code-diff for the latest push
+          MERGE_BASE=$(git log --grep="^sync:" -1 --format="%H" 2>/dev/null || git rev-parse HEAD~5)
+          bash scripts/sync-bridge.sh --merge-base "$MERGE_BASE" --auto || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-artifacts
+          path: .artifacts/
+          if-no-files-found: ignore

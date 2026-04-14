@@ -1,0 +1,47 @@
+# Layer boundary check — warn when a PR modifies files across L1/L2 boundaries.
+name: Layer Boundary Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  boundary-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check cross-layer modifications
+        run: |
+          # Get list of changed files
+          CHANGED=$(git diff --name-only origin/main...HEAD)
+
+          L1_CHANGED=false
+          L2_CHANGED=false
+
+          while IFS= read -r file; do
+            case "$file" in
+              socialware/*|channels/*) L1_CHANGED=true ;;
+              autoservice/*|plugins/*|skills/*) L2_CHANGED=true ;;
+            esac
+          done <<< "$CHANGED"
+
+          if [ "$L1_CHANGED" = true ] && [ "$L2_CHANGED" = true ]; then
+            echo "::warning::This PR modifies both L1 (socialware/channels) and L2 (autoservice/plugins/skills) directories."
+            echo "::warning::Please ensure L1 changes are framework-level and not business-specific."
+            echo ""
+            echo "=== L1 files changed ==="
+            echo "$CHANGED" | grep -E '^(socialware|channels)/' || true
+            echo ""
+            echo "=== L2 files changed ==="
+            echo "$CHANGED" | grep -E '^(autoservice|plugins|skills)/' || true
+          fi
+
+          if [ "$L1_CHANGED" = true ]; then
+            echo ""
+            echo "L1 framework files were modified. Review checklist:"
+            echo "  - Would this change be useful for ALL apps built on socialware? (not just customer-service)"
+            echo "  - Does it introduce any business-domain coupling?"
+          fi

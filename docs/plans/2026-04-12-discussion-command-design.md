@@ -1,4 +1,4 @@
-# /discussion 指令设计文档 — 动态指令注册系统
+# /discuss 指令设计文档 — 动态指令注册系统
 
 > 日期: 2026-04-14
 > 作者: huangjiajia
@@ -7,12 +7,12 @@
 
 ## 1. 目标
 
-在飞书 IM 中实现 `/discussion` 指令体系，核心能力是**动态创建指令并映射到已有 skill**。用户通过 `/discussion create cmd` 在运行时注册新的飞书斜杠指令，注册后即可在会话中直接使用新指令。
+在飞书 IM 中实现 `/discuss` 指令体系，核心能力是**动态创建指令并映射到已有 skill**。用户通过 `/discuss create cmd` 在运行时注册新的飞书斜杠指令，注册后即可在会话中直接使用新指令。
 
 ### 用例示例
 
 ```ini
-管理员: /discussion create cmd /review evaluate "文档评审快捷入口"
+管理员: /discuss create cmd /review evaluate "文档评审快捷入口"
 系统:   已注册指令 /review → evaluate skill
 
 用户:   /review docs/plans/xxx.md
@@ -98,14 +98,14 @@ doc-coauthoring, internal-comms, slack-gif-creator, theme-factory — 共 17 个
 | 数据存储 | registry.yaml 在 .autoservice/ (运行时) | L2/L3 交界 |
 | 复用性 | 其他 L2 应用 (如 marketing) 也能用 | L2 |
 
-**结论: 放在 L2 (channels/feishu)**。指令注册机制是 channel adapter 的一部分，L3 租户通过 `/discussion create cmd` 动态使用，不需要 fork 代码。
+**结论: 放在 L2 (channels/feishu)**。指令注册机制是 channel adapter 的一部分，L3 租户通过 `/discuss create cmd` 动态使用，不需要 fork 代码。
 
 ## 3. 架构设计
 
 ### 3.1 核心概念
 
 ```ini
-/discussion ─── 元指令 (meta-command)
+/discuss ─── 元指令 (meta-command)
   ├── create cmd  ─── 注册新指令 (映射 skill)
   ├── list cmd    ─── 查看已注册指令
   ├── delete cmd  ─── 删除指令
@@ -121,11 +121,11 @@ doc-coauthoring, internal-comms, slack-gif-creator, theme-factory — 共 17 个
 **发现 → 注册 → 使用** 三步工作流:
 
 ```ini
-Step 1: /discussion discover
+Step 1: /discuss discover
   → 扫描三个 skill 来源，列出所有未被映射的 skill
   → 按来源分组显示
 
-Step 2: /discussion create cmd /test-plan test-plan-generator "生成测试计划"
+Step 2: /discuss create cmd /test-plan test-plan-generator "生成测试计划"
   → 将 test-plan-generator skill 映射到 /test-plan 指令
 
 Step 3: /test-plan 用户登录模块
@@ -143,13 +143,13 @@ Step 3: /test-plan 用户登录模块
                       ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 拦截层: channel_server.py                               │
-│   1. /discussion xxx → 元指令处理 (create/list/delete)   │
+│   1. /discuss xxx → 元指令处理 (create/list/delete)       │
 │   2. /<dynamic_cmd> → 查 registry → 构造 skill 调用消息  │
 └─────────────────────┬───────────────────────────────────┘
                       ↓
 ┌─────────────────────────────────────────────────────────┐
 │ 路由层: channel-instructions.md                         │
-│   新增 discussion mode: 按 discussion_meta.skill 路由    │
+│   新增 discuss mode: 按 discuss_meta.skill 路由          │
 └─────────────────────┬───────────────────────────────────┘
                       ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -166,14 +166,14 @@ Step 3: /test-plan 用户登录模块
 
 ```yaml
 # .autoservice/commands/registry.yaml
-# 动态指令注册表 — 由 /discussion create cmd 写入
+# 动态指令注册表 — 由 /discuss create cmd 写入
 version: 1
 commands:
   review:
     skill: evaluate
     description: "文档评审快捷入口"
     args_template: "@{args}"          # 参数传递模板
-    runtime_mode: discussion          # 注入的 runtime_mode
+    runtime_mode: discuss          # 注入的 runtime_mode
     created_by: "Allen Woods"
     created_at: "2026-04-14T10:30:00Z"
     
@@ -181,7 +181,7 @@ commands:
     skill: project-discussion-autoservice
     description: "项目知识问答"
     args_template: "{args}"
-    runtime_mode: discussion
+    runtime_mode: discuss
     created_by: "Allen Woods"
     created_at: "2026-04-14T10:35:00Z"
 
@@ -189,7 +189,7 @@ commands:
     skill: knowledge-base
     description: "知识库搜索"
     args_template: "search {args}"    # 自动补全子命令
-    runtime_mode: discussion
+    runtime_mode: discuss
     created_by: "Allen Woods"
     created_at: "2026-04-14T10:40:00Z"
 ```
@@ -199,26 +199,26 @@ commands:
 | 字段 | 必填 | 说明 |
 |---|---|---|
 | skill | Y | 映射的目标 skill 名，必须存在于 skills/ 目录中 |
-| description | Y | 指令用途描述，显示在 /discussion list cmd |
+| description | Y | 指令用途描述，显示在 /discuss list cmd |
 | args_template | N | 参数传递模板，`{args}` 为占位符；默认 `"{args}"` |
-| runtime_mode | N | 注入的 runtime_mode；默认 `"discussion"` |
+| runtime_mode | N | 注入的 runtime_mode；默认 `"discuss"` |
 | created_by | N | 注册人 |
 | created_at | N | 注册时间 |
 
-### 4.2 元指令: /discussion create cmd
+### 4.2 元指令: /discuss create cmd
 
 **语法**:
 
 ```sh
-/discussion create cmd /<name> <skill_name> ["description"]
+/discuss create cmd /<name> <skill_name> ["description"]
 ```
 
 **示例**:
 
 ```ini
-/discussion create cmd /review evaluate "文档评审快捷入口"
-/discussion create cmd /qa project-discussion-autoservice "项目问答"
-/discussion create cmd /kb knowledge-base "知识库搜索"
+/discuss create cmd /review evaluate "文档评审快捷入口"
+/discuss create cmd /qa project-discussion-autoservice "项目问答"
+/discuss create cmd /kb knowledge-base "知识库搜索"
 ```
 
 **处理流程**:
@@ -226,10 +226,10 @@ commands:
 ```python
 # channel_server.py 伪代码
 
-def _handle_discussion_create_cmd(self, chat_id, text):
-    # 解析: /discussion create cmd /review evaluate "描述"
+def _handle_discuss_create_cmd(self, chat_id, text):
+    # 解析: /discuss create cmd /review evaluate "描述"
     match = re.match(
-        r'/discussion\s+create\s+cmd\s+/(\w[\w-]*)\s+([\w-]+)\s*(?:"([^"]*)")?',
+        r'/discuss\s+create\s+cmd\s+/(\w[\w-]*)\s+([\w-]+)\s*(?:"([^"]*)")?',
         text
     )
     if not match:
@@ -250,7 +250,7 @@ def _handle_discussion_create_cmd(self, chat_id, text):
         "skill": skill_name,
         "description": description or f"Shortcut for {skill_name}",
         "args_template": "{args}",
-        "runtime_mode": "discussion",
+        "runtime_mode": "discuss",
         "created_by": display_name,
         "created_at": now_iso(),
     }
@@ -264,14 +264,14 @@ def _handle_discussion_create_cmd(self, chat_id, text):
 | 校验项 | 规则 | 失败消息 |
 |---|---|---|
 | 指令名格式 | `[\w][\w-]*`, 1-20 字符 | "指令名只允许字母、数字、连字符" |
-| 保留字冲突 | 不能是 improve/production/help/status/inject/explain/discussion | "/{name} 是保留指令" |
-| Skill 存在性 | 三个来源中任一存在即可 (项目/插件/内置) | "skill 不存在，可用: ... (发送 /discussion discover 查看全部)" |
+| 保留字冲突 | 不能是 improve/production/help/status/inject/explain/discuss | "/{name} 是保留指令" |
+| Skill 存在性 | 三个来源中任一存在即可 (项目/插件/内置) | "skill 不存在，可用: ... (发送 /discuss discover 查看全部)" |
 | 重名处理 | 已存在则覆盖，附带提示 | "已更新: /{name} (原: {old_skill} → 新: {new_skill})" |
 
-### 4.3 元指令: /discussion list cmd
+### 4.3 元指令: /discuss list cmd
 
 ```sh
-/discussion list cmd
+/discuss list cmd
 ```
 
 输出:
@@ -283,13 +283,13 @@ def _handle_discussion_create_cmd(self, chat_id, text):
   /qa      → project-discussion  项目知识问答          (Allen, 04-14)
   /kb      → knowledge-base      知识库搜索            (Allen, 04-14)
 
-共 3 条。使用 /discussion create cmd 注册新指令。
+共 3 条。使用 /discuss create cmd 注册新指令。
 ```
 
-### 4.4 元指令: /discussion delete cmd
+### 4.4 元指令: /discuss delete cmd
 
 ```sh
-/discussion delete cmd /review
+/discuss delete cmd /review
 ```
 
 输出:
@@ -298,13 +298,13 @@ def _handle_discussion_create_cmd(self, chat_id, text):
 已删除: /review (原映射: evaluate)
 ```
 
-### 4.5 元指令: /discussion discover
+### 4.5 元指令: /discuss discover
 
 **语法**:
 
 ```ini
-/discussion discover            # 列出所有未关联 skill
-/discussion discover dev-loop   # 按来源过滤
+/discuss discover            # 列出所有未关联 skill
+/discuss discover dev-loop   # 按来源过滤
 ```
 
 **输出示例**:
@@ -334,13 +334,13 @@ def _handle_discussion_create_cmd(self, chat_id, text):
   ... (共 17 个)
 
 已关联: 4 个 | 未关联: 29 个
-使用 /discussion create cmd /<name> <skill> 注册指令。
+使用 /discuss create cmd /<name> <skill> 注册指令。
 ```
 
 **处理流程**:
 
 ```python
-def _handle_discussion_discover(self, chat_id, filter_source=None):
+def _handle_discuss_discover(self, chat_id, filter_source=None):
     all_skills = self._discover_all_skills()  # { source: [skill_info, ...] }
     mapped = set(e["skill"] for e in self._command_registry.values())
     # 也加上硬编码关联的
@@ -452,7 +452,7 @@ elif text_stripped.startswith("/"):
     if cmd_name in self._command_registry:
         entry = self._command_registry[cmd_name]
         skill_name = entry["skill"]
-        runtime_mode = entry.get("runtime_mode", "discussion")
+        runtime_mode = entry.get("runtime_mode", "discuss")
         
         # 应用参数模板
         args_template = entry.get("args_template", "{args}")
@@ -469,7 +469,7 @@ elif text_stripped.startswith("/"):
             "user_id": sender_id,
             "runtime_mode": runtime_mode,
             "business_mode": "customer_service",
-            "discussion_meta": {
+            "discuss_meta": {
                 "source_cmd": cmd_name,
                 "skill": skill_name,
                 "original_text": text,
@@ -482,18 +482,18 @@ elif text_stripped.startswith("/"):
 
 ### 4.6 channel-instructions.md 改动
 
-新增 discussion mode 路由:
+新增 discuss mode 路由:
 
 ```markdown
-A dynamically registered command was invoked. Route by `discussion_meta.skill`:
-- Read the `discussion_meta.skill` field to determine which skill to invoke
+A dynamically registered command was invoked. Route by `discuss_meta.skill`:
+- Read the `discuss_meta.skill` field to determine which skill to invoke
 - The message `text` has been pre-formatted by the command registry — use it as the skill input
-- Invoke the corresponding skill: `/{discussion_meta.skill}`
+- Invoke the corresponding skill: `/{discuss_meta.skill}`
 
 Examples:
-- discussion_meta.skill = "evaluate" → use /evaluate skill, text contains the document path
-- discussion_meta.skill = "knowledge-base" → use /knowledge-base skill, text contains the query
-- discussion_meta.skill = "project-discussion-autoservice" → use /project-discussion-autoservice skill
+- discuss_meta.skill = "evaluate" → use /evaluate skill, text contains the document path
+- discuss_meta.skill = "knowledge-base" → use /knowledge-base skill, text contains the query
+- discuss_meta.skill = "project-discussion-autoservice" → use /project-discussion-autoservice skill
 ```
 
 ### 4.9 Skill 存在性检查 (create cmd 校验用)
@@ -525,7 +525,7 @@ on_message() 中的指令匹配顺序:
 ```ini
 1. /improve        → 切换到 improve 模式 (硬编码)
 2. /production     → 切换到 production 模式 (硬编码)
-3. /discussion ... → 元指令处理 (create/list/delete/help)
+3. /discuss ...    → 元指令处理 (create/list/delete/help)
 4. /<dynamic_cmd>  → 查注册表 → 构造 skill 调用
 5. (无匹配)        → 普通消息，按 current_mode 路由
 ```
@@ -537,7 +537,7 @@ on_message() 中的指令匹配顺序:
 2. /status         → 状态 (硬编码)
 3. /inject ...     → 注入消息 (硬编码)
 4. /explain ...    → explain 模式 (硬编码)
-5. /discussion ... → 元指令处理
+5. /discuss ...    → 元指令处理
 6. /<dynamic_cmd>  → 查注册表 → 构造 skill 调用
 7. (无匹配)        → 返回未知命令
 ```
@@ -547,10 +547,10 @@ on_message() 中的指令匹配顺序:
 ### 6.1 注册新指令
 
 ```ini
-用户:  /discussion create cmd /review evaluate "文档评审"
+用户:  /discuss create cmd /review evaluate "文档评审"
   ↓
 channel_server.py: on_message()
-  ↓ 匹配 /discussion
+  ↓ 匹配 /discuss
   ↓ 解析: create cmd, name=review, skill=evaluate
   ↓ 校验: "review" 非保留字, evaluate skill 存在
   ↓ 写入 _command_registry + registry.yaml
@@ -564,16 +564,16 @@ channel_server.py: on_message()
 用户:  /review docs/plans/xxx.md
   ↓
 channel_server.py: on_message()
-  ↓ 不匹配 /improve, /production, /discussion
+  ↓ 不匹配 /improve, /production, /discuss
   ↓ 查注册表: "review" → { skill: "evaluate", args_template: "@{args}" }
   ↓ 格式化: text = "@docs/plans/xxx.md"
-  ↓ 构造 msg: runtime_mode="discussion", discussion_meta.skill="evaluate"
+  ↓ 构造 msg: runtime_mode="discuss", discuss_meta.skill="evaluate"
   ↓ route_message()
   ↓
 channel.py: inject_message() → MCP notification
   ↓
 Claude Code: 读 channel-instructions.md
-  ↓ discussion mode → discussion_meta.skill = "evaluate"
+  ↓ discuss mode → discuss_meta.skill = "evaluate"
   ↓ 触发 /evaluate skill
   ↓ text = "@docs/plans/xxx.md" → evaluate 解析为文档路径
   ↓ 执行评审流程
@@ -583,7 +583,7 @@ Claude Code: 读 channel-instructions.md
 
 ```yaml
 # 注册时指定参数模板
-/discussion create cmd /kb-search knowledge-base "知识库搜索"
+/discuss create cmd /kb-search knowledge-base "知识库搜索"
 
 # 自定义模板 (未来扩展，当前版本不暴露此语法)
 commands:
@@ -635,7 +635,7 @@ class ChannelServer:
 
 ```python
 RESERVED_COMMANDS = {
-    "improve", "production", "discussion",
+    "improve", "production", "discuss",
     "help", "status", "inject", "explain",
 }
 ```
@@ -645,11 +645,11 @@ RESERVED_COMMANDS = {
 在现有 help_text() 中追加:
 
 ```ini
-/discussion discover [source]                     发现未关联的 skill
-/discussion create cmd /<name> <skill> ["desc"]   注册动态指令
-/discussion list cmd                              查看已注册指令
-/discussion delete cmd /<name>                    删除指令
-/discussion help                                  显示帮助
+/discuss discover [source]                     发现未关联的 skill
+/discuss create cmd /<name> <skill> ["desc"]   注册动态指令
+/discuss list cmd                              查看已注册指令
+/discuss delete cmd /<name>                    删除指令
+/discuss help                                  显示帮助
 ```
 
 ## 10. 实现计划
@@ -658,10 +658,10 @@ RESERVED_COMMANDS = {
 |---|---|---|
 | 1 | `channels/feishu/channel_server.py` | 新增 `_command_registry`, `_load/_save_registry()` |
 | 2 | `channels/feishu/channel_server.py` | 新增 `_discover_all_skills()`, `_scan_skills_dir()`, `_scan_plugin_skills()` |
-| 3 | `channels/feishu/channel_server.py` | on_message() 中新增 `/discussion` 拦截 + 动态指令拦截 |
-| 4 | `channels/feishu/channel_server.py` | `_handle_admin_message()` 中新增 `/discussion` + 动态指令支持 |
+| 3 | `channels/feishu/channel_server.py` | on_message() 中新增 `/discuss` 拦截 + 动态指令拦截 |
+| 4 | `channels/feishu/channel_server.py` | `_handle_admin_message()` 中新增 `/discuss` + 动态指令支持 |
 | 5 | `channels/feishu/channel_server.py` | 更新 `help_text()` |
-| 6 | `channels/feishu/channel-instructions.md` | 新增 discussion mode 路由规则 |
+| 6 | `channels/feishu/channel-instructions.md` | 新增 discuss mode 路由规则 |
 | 7 | `.autoservice/commands/` | 创建目录结构 |
 | 8 | 测试 | discover → create → list → use → delete 全流程 |
 
@@ -669,13 +669,13 @@ RESERVED_COMMANDS = {
 
 ```bash
 # 在飞书管理群中一次性注册 dev-loop 全套指令:
-/discussion create cmd /dev-loop using-dev-loop "Dev-loop pipeline 路由"
-/discussion create cmd /bootstrap project-builder "项目引导"
-/discussion create cmd /test-plan test-plan-generator "生成测试计划"
-/discussion create cmd /write-test test-code-writer "编写测试代码"
-/discussion create cmd /run-test test-runner "执行测试"
-/discussion create cmd /eval feature-eval "特性评估"
-/discussion create cmd /artifacts artifact-registry "制品管理"
+/discuss create cmd /dev-loop using-dev-loop "Dev-loop pipeline 路由"
+/discuss create cmd /bootstrap project-builder "项目引导"
+/discuss create cmd /test-plan test-plan-generator "生成测试计划"
+/discuss create cmd /write-test test-code-writer "编写测试代码"
+/discuss create cmd /run-test test-runner "执行测试"
+/discuss create cmd /eval feature-eval "特性评估"
+/discuss create cmd /artifacts artifact-registry "制品管理"
 ```
 
 注册后在飞书中即可:
@@ -692,4 +692,4 @@ RESERVED_COMMANDS = {
 2. **权限控制**: create/delete/discover 是否限制为管理群？建议是——普通用户群只能使用已注册指令，不能注册。
 3. **指令作用域**: 注册的指令是全局的 (所有群可用) 还是 per-chat？建议全局，简化管理。
 4. **插件版本变更**: 插件更新后 skill 名可能变化，discover 重新扫描即可，但已注册指令若映射到已删除的 skill 需要提示。
-5. **批量注册**: 是否支持 `/discussion create cmd --from dev-loop` 一键注册某插件下所有 skill？v1 可不做，手动逐条注册即可验证。
+5. **批量注册**: 是否支持 `/discuss create cmd --from dev-loop` 一键注册某插件下所有 skill？v1 可不做，手动逐条注册即可验证。

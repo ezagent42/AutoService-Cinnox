@@ -7,9 +7,15 @@ as a wildcard instance, then verifies message routing works end-to-end.
 No external dependencies required.
 """
 import asyncio
+import io
 import json
 import sys
 import os
+
+# Fix Windows GBK encoding issues with Unicode output
+if sys.stdout.encoding and sys.stdout.encoding.lower() in ("gbk", "cp936", "gb2312"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -25,13 +31,13 @@ FAIL = 0
 def ok(msg):
     global PASS
     PASS += 1
-    print(f"  ✅ {msg}")
+    print(f"  [PASS] {msg}")
 
 
 def fail(msg):
     global FAIL
     FAIL += 1
-    print(f"  ❌ {msg}")
+    print(f"  [FAIL] {msg}")
 
 
 async def main():
@@ -39,14 +45,14 @@ async def main():
     print()
 
     # Start channel-server in-process
-    from feishu.channel_server import ChannelServer
+    from channels.feishu.channel_server import ChannelServer
     server = ChannelServer(port=SERVER_PORT, feishu_enabled=False)
     server_task = asyncio.create_task(server.start())
     await asyncio.sleep(0.3)
 
     try:
         # Test 1: Connect and register as wildcard
-        print("▶ Test 1: Register wildcard instance")
+        print("> Test 1: Register wildcard instance")
         async with websockets.connect(f"ws://localhost:{SERVER_PORT}") as ws:
             await ws.send(json.dumps({
                 "type": "register",
@@ -64,7 +70,7 @@ async def main():
 
             # Test 2: Send a message and verify wildcard receives it
             print()
-            print("▶ Test 2: Route message to wildcard")
+            print("> Test 2: Route message to wildcard")
             await ws.send(json.dumps({
                 "type": "message",
                 "chat_id": "oc_e2e_test",
@@ -85,7 +91,7 @@ async def main():
 
             # Test 3: Verify runtime_mode and business_mode are preserved
             print()
-            print("▶ Test 3: Verify mode fields preserved")
+            print("> Test 3: Verify mode fields preserved")
             if msg.get("runtime_mode") == "production" and msg.get("business_mode") == "sales":
                 ok("runtime_mode=production, business_mode=sales preserved")
             else:
@@ -93,7 +99,7 @@ async def main():
 
             # Test 4: Reply protocol
             print()
-            print("▶ Test 4: Reply protocol")
+            print("> Test 4: Reply protocol")
             await ws.send(json.dumps({
                 "type": "reply",
                 "chat_id": "oc_e2e_test",
@@ -103,7 +109,7 @@ async def main():
 
         # Test 5: Second client with specific chat_id + wildcard routing
         print()
-        print("▶ Test 5: Specific + wildcard dual routing")
+        print("> Test 5: Specific + wildcard dual routing")
         async with websockets.connect(f"ws://localhost:{SERVER_PORT}") as ws_specific, \
                      websockets.connect(f"ws://localhost:{SERVER_PORT}") as ws_wildcard:
             # Register specific
@@ -143,7 +149,7 @@ async def main():
 
         # Test 6: Registration conflict
         print()
-        print("▶ Test 6: Registration conflict rejection")
+        print("> Test 6: Registration conflict rejection")
         async with websockets.connect(f"ws://localhost:{SERVER_PORT}") as ws1, \
                      websockets.connect(f"ws://localhost:{SERVER_PORT}") as ws2:
             await ws1.send(json.dumps({
@@ -164,15 +170,15 @@ async def main():
 
         # Test 7: Status text
         print()
-        print("▶ Test 7: Status text generation")
+        print("> Test 7: Status text generation")
         status = server.status_text()
-        if "instances" in status.lower() or "Instance" in status:
+        if "Status" in status or "服务台" in status:
             ok(f"Status text generated: {status[:60]}...")
         else:
             fail(f"Status text unexpected: {status}")
 
     finally:
-        server.stop()
+        await server.stop()
         server_task.cancel()
         try:
             await server_task

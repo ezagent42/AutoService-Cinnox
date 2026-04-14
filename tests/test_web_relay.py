@@ -21,8 +21,8 @@ async def test_web_bridge_connects_and_registers():
 
     server = await websockets.serve(mock_handler, "localhost", MOCK_CS_PORT)
     try:
-        from web.websocket import WebChannelBridge
-        import web.websocket as ws_mod
+        from channels.web.websocket import WebChannelBridge
+        import channels.web.websocket as ws_mod
 
         old_url = ws_mod.CHANNEL_SERVER_URL
         ws_mod.CHANNEL_SERVER_URL = f"ws://localhost:{MOCK_CS_PORT}"
@@ -66,8 +66,8 @@ async def test_web_bridge_demuxes_replies():
 
     server = await websockets.serve(mock_handler, "localhost", MOCK_CS_PORT)
     try:
-        from web.websocket import WebChannelBridge
-        import web.websocket as ws_mod
+        from channels.web.websocket import WebChannelBridge
+        import channels.web.websocket as ws_mod
 
         old_url = ws_mod.CHANNEL_SERVER_URL
         ws_mod.CHANNEL_SERVER_URL = f"ws://localhost:{MOCK_CS_PORT}"

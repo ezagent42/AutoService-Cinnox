@@ -9,7 +9,7 @@ import pytest
 import websockets
 
 # We import directly since feishu/__init__.py exists
-from feishu.channel_server import ChannelServer
+from channels.feishu.channel_server import ChannelServer
 
 SERVER_PORT = 19999
 

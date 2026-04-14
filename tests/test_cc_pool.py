@@ -1,5 +1,5 @@
 """
-Unit tests for CC Pool — uses mocked ClaudeSDKClient.
+Unit tests for CC Pool — uses mocked CCClient.
 """
 
 import asyncio
@@ -15,28 +15,15 @@ from autoservice.cc_pool import CCPool, PoolConfig, PooledInstance, load_pool_co
 # Mock helpers
 # ---------------------------------------------------------------------------
 
-class MockProcess:
-    """Simulates an anyio.Process with returncode."""
-    def __init__(self, alive: bool = True):
-        self.returncode = None if alive else 1
-
-
-class MockTransport:
-    """Simulates SubprocessCLITransport."""
-    def __init__(self, alive: bool = True):
-        self._process = MockProcess(alive)
-
-
 class MockResultMessage:
     """Simulates a ResultMessage."""
     pass
 
 
 def make_mock_client(alive: bool = True):
-    """Create a mock ClaudeSDKClient."""
+    """Create a mock CCClient that satisfies PoolableClient protocol."""
     client = MagicMock()
-    client._transport = MockTransport(alive)
-    client._query = object()
+    client.is_healthy = MagicMock(return_value=alive)
     client.connect = AsyncMock()
     client.disconnect = AsyncMock()
     client.query = AsyncMock()
@@ -105,9 +92,9 @@ class TestPooledInstance:
         inst = PooledInstance(client=client, id="test-002")
         assert inst.is_healthy is False
 
-    def test_is_healthy_no_transport(self):
+    def test_is_healthy_exception(self):
         client = make_mock_client()
-        client._transport = None
+        client.is_healthy = MagicMock(side_effect=RuntimeError("broken"))
         inst = PooledInstance(client=client, id="test-003")
         assert inst.is_healthy is False
 
@@ -150,7 +137,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_start_creates_warm_instances(self, pool_config):
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -161,7 +148,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_checkout_returns_instance(self, pool_config):
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -174,7 +161,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_checkout_checkin_cycle(self, pool_config):
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -187,7 +174,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_acquire_context_manager(self, pool_config):
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -203,7 +190,7 @@ class TestCCPool:
     async def test_on_demand_creation(self):
         """When queue is empty but under max, creates on demand."""
         config = PoolConfig(min_size=0, max_size=2, warmup_count=0, health_check_interval=100)
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -218,7 +205,7 @@ class TestCCPool:
     async def test_pool_exhaustion_timeout(self):
         """When at max_size and all checked out, timeout."""
         config = PoolConfig(min_size=0, max_size=1, warmup_count=1, health_check_interval=100, checkout_timeout=0.5)
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -232,13 +219,13 @@ class TestCCPool:
     async def test_checkin_recycles_unhealthy(self):
         """Unhealthy instances are destroyed on checkin."""
         config = PoolConfig(min_size=0, max_size=2, warmup_count=1, health_check_interval=100)
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
                 inst = await pool.checkout()
-                # Kill the process
-                inst.client._transport._process.returncode = 1
+                # Mark as unhealthy
+                inst.client.is_healthy.return_value = False
                 assert inst.is_healthy is False
                 await pool.checkin(inst)
                 # Instance was destroyed, not returned to queue
@@ -251,7 +238,7 @@ class TestCCPool:
         """Instances exceeding max_queries_per_instance are recycled."""
         config = PoolConfig(min_size=0, max_size=2, warmup_count=1,
                             max_queries_per_instance=3, health_check_interval=100)
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -265,12 +252,12 @@ class TestCCPool:
     @pytest.mark.asyncio
     async def test_shutdown_disconnects_all(self, pool_config):
         clients = []
-        def track_client(opts):
+        def track_client(cfg):
             c = make_mock_client()
             clients.append(c)
             return c
 
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=track_client):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=track_client):
             pool = CCPool(pool_config)
             await pool.start()
             await pool.shutdown()
@@ -294,7 +281,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_status(self, pool_config):
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -311,7 +298,7 @@ class TestCCPool:
     async def test_query_convenience(self):
         """Pool.query() checks out, queries, and checks in."""
         config = PoolConfig(min_size=0, max_size=1, warmup_count=1, health_check_interval=100)
-        with patch("autoservice.cc_pool.ClaudeSDKClient", side_effect=lambda opts: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:

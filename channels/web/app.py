@@ -48,7 +48,7 @@ if os.path.exists(_env_path):
 
 
 # ── Paths & config ────────────────────────────────────────────────────────
-ROOT             = Path(__file__).parent.parent
+ROOT             = Path(__file__).parent.parent.parent
 STATIC           = Path(__file__).parent / "static"
 AUTOSERVICE_DIR  = ROOT / ".autoservice"
 SESSIONS_DIR     = ROOT / ".autoservice" / "database" / "sessions"
@@ -59,10 +59,10 @@ IDLE_TIMEOUT_SECONDS = int(os.getenv("IDLE_TIMEOUT_MINUTES", "15")) * 60
 ADMIN_KEY            = os.getenv("DEMO_ADMIN_KEY") or secrets.token_urlsafe(10)
 
 # ── Configure submodules ──────────────────────────────────────────────────
-from web import auth
-from web import plugin_kb
-from web import session_persistence as sessions
-from web import websocket as ws_handlers
+from channels.web import auth
+from channels.web import plugin_kb
+from channels.web import session_persistence as sessions
+from channels.web import websocket as ws_handlers
 
 auth.configure(
     admin_key=ADMIN_KEY,
@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
 
     # Discover plugins and mount HTTP routes
     try:
-        from autoservice.plugin_loader import discover
+        from socialware.plugin_loader import discover
         plugins = discover(ROOT / "plugins")
         for plugin in plugins:
             for route in plugin.routes:

@@ -1,0 +1,21 @@
+# docs/fork-registry.yaml — L3 Fork Registry
+# Maintained by L2 (AutoService) team
+#
+# Used by:
+#   - scripts/sync-all.sh   (batch sync all forks)
+#   - scripts/sync-status.sh (check fork divergence)
+#   - .github/workflows/auto-sync-pr.yml (auto-create sync PRs)
+
+upstream:
+  l1: h2oslabs/socialware
+  l2: h2oslabs/AutoService
+
+forks: []
+  # Example entry:
+  # - name: cinnox
+  #   repo: cinnox/AutoService
+  #   layer: L3
+  #   status: active          # active | inactive | archived
+  #   contact: alice@cinnox.com
+  #   created: 2026-04-01
+  #   notes: "CINNOX customer service demo"

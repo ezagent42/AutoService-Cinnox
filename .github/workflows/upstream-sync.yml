@@ -1,0 +1,47 @@
+# Upstream sync check — monitors fork divergence from upstream.
+# Place in L2/L3 repos. Runs weekly to detect sync drift.
+name: Upstream Sync Check
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday 9:00 UTC
+  workflow_dispatch:
+
+jobs:
+  sync-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check upstream divergence
+        run: |
+          # Configure upstream (adjust URL for your fork level)
+          # L2 forks: upstream = socialware repo
+          # L3 forks: upstream = autoservice repo
+          UPSTREAM_URL="${UPSTREAM_REPO_URL:-}"
+
+          if [ -z "$UPSTREAM_URL" ]; then
+            echo "UPSTREAM_REPO_URL not set. Skipping sync check."
+            echo "Set it in repository secrets/variables to enable."
+            exit 0
+          fi
+
+          git remote add upstream "$UPSTREAM_URL" 2>/dev/null || true
+          git fetch upstream main --depth=100
+
+          BEHIND=$(git rev-list --count HEAD..upstream/main 2>/dev/null || echo "0")
+          AHEAD=$(git rev-list --count upstream/main..HEAD 2>/dev/null || echo "0")
+
+          echo "Upstream sync status:"
+          echo "  Behind upstream: $BEHIND commits"
+          echo "  Ahead of upstream: $AHEAD commits"
+
+          if [ "$BEHIND" -gt 50 ]; then
+            echo "::warning::This fork is $BEHIND commits behind upstream. Consider merging upstream/main."
+          elif [ "$BEHIND" -gt 0 ]; then
+            echo "This fork is $BEHIND commits behind upstream."
+          else
+            echo "Fork is up to date with upstream."
+          fi

@@ -1,12 +1,18 @@
-# AutoService — Fork-Based Customer Service / Sales Bot Framework
+# AutoService — Three-Layer Fork-Based AI Application Framework
 
 ## Overview
 
-AutoService is a fork-based framework for building customer service and sales bots. Each customer deployment is a fork of this repo with customer-specific configuration via declarative plugins.
+AutoService is a three-layer fork-based framework for building AI-powered social-channel applications (customer service, sales, education, etc.). The architecture uses full-chain fork strategy (L1 → L2 → L3).
 
-Two channels:
-- **Feishu IM** (primary) — MCP-based, runs as `feishu/channel.py`
-- **Web chat** (secondary) — FastAPI app at `web/app:app`
+**Three layers:**
+- **L1 `socialware/`** — Base framework: plugin loading, config mechanism, session framework, async pool, generic utilities
+- **L2 `autoservice/`** — Application layer: customer service business logic, CRM, domain-specific configs
+- **L2 `channels/`** — Channel adapters: Feishu IM, Web chat (currently L2, contains business-specific logic; generic parts may be extracted to L1 when a second application emerges)
+- **L3 `plugins/<tenant>/`** — Tenant instance: customer-specific plugins and data
+
+**Two channels:**
+- **Feishu IM** (primary) — MCP-based, runs as `channels/feishu/channel.py`
+- **Web chat** (secondary) — FastAPI app at `channels/web/app:app`
 
 ## Commands
 
@@ -18,35 +24,97 @@ Two channels:
 ## Directory Structure
 
 ```
-feishu/              # Feishu IM channel (MCP server)
-web/                 # Web chat channel (FastAPI)
-autoservice/         # Core library (shared logic)
-skills/              # Claude Code skills (symlinked into .claude/skills)
-plugins/             # Customer-specific plugins (declarative)
+socialware/          # L1: Base framework (CODEOWNERS protected)
+  pool.py            #   Generic async object pool (AsyncPool[T], PoolableClient)
+  claude.py          #   Claude Agent SDK wrapper (generic, no app-specific paths)
+channels/            # L2: Channel adapters (see note below)
+  feishu/            #   Feishu IM channel (MCP server)
+  web/               #   Web chat channel (FastAPI)
+autoservice/         # L2: Customer service application layer
+  cc_pool.py         #   Claude Code instance pool (extends socialware.pool.AsyncPool)
+  domain_config.py   #   Business config data (LANG_CONFIGS)
+  domain_session.py  #   Session prefixes (DOMAIN_PREFIXES)
+  domain_permission.py # Permission defaults
+  customer_manager.py  # Customer management
+  crm.py             #   CRM (contacts, conversations)
+  rules.py           #   Behavior rules
+skills/              # L2: Claude Code skills (symlinked into .claude/skills)
+plugins/             # L3: Customer-specific plugins (declarative)
 commands/            # Claude Code commands (symlinked into .claude/commands)
 agents/              # Claude Code agents (symlinked into .claude/agents)
 hooks/               # Claude Code hooks (symlinked into .claude/hooks)
+templates/           # L2 fork scaffolding
 .autoservice/        # Runtime data — logs, cache, db (gitignored)
 docs/                # Design docs and plans
 ```
 
+## Import Convention
+
+```python
+# L1 framework imports (preferred for new code)
+from socialware import generate_id, load_config, MockDB
+from socialware.plugin_loader import discover
+
+# L2 business imports
+from autoservice.domain_config import LANG_CONFIGS
+from autoservice.domain_session import DOMAIN_PREFIXES
+from autoservice.customer_manager import CustomerManager
+
+# Backward-compatible (still works via shims in autoservice/)
+from autoservice import generate_id, load_config  # re-exported from socialware
+```
+
+## Layer Ownership
+
+| Directory | Layer | Owner | L3 may modify? |
+|-----------|-------|-------|----------------|
+| `socialware/` | L1 | Framework team | No (CODEOWNERS) |
+| `channels/` | L2 | App team | No (PR to upstream) |
+| `autoservice/` | L2 | App team | No (PR to upstream) |
+| `plugins/_example/` | L2 | App team | No |
+| `plugins/<tenant>/` | L3 | Tenant | Yes |
+| `skills/<tenant>/` | L3 | Tenant | Yes |
+
+> **Note on `channels/`:** Currently L2 because Feishu channel contains business-specific logic
+> (CRM integration, business_mode, admin commands). When a second L2 application needs channel
+> adapters, the generic parts (~40% of code: WebSocket routing, pub/sub bridge, message dispatch)
+> should be extracted to `socialware/` as an L1 channel framework. See analysis below.
+
+### channels/ L1 extraction roadmap (deferred)
+
+The following generic components are candidates for future L1 extraction:
+
+| Component | Current location | Reusability |
+|-----------|-----------------|-------------|
+| WebSocket route multiplexer (exact/prefix/wildcard) | channel_server.py | High |
+| ChannelClient (auto-reconnect, heartbeat, message loop) | channel.py | High |
+| WebChannelBridge (pub/sub) | websocket.py | High |
+| Token lifecycle management (expiry, idle cleanup) | auth.py | Medium |
+| Plugin HTTP route registration | app.py | Medium |
+
+**Extraction blocker:** channel_server.py (~1100 lines) has Feishu logic and routing logic
+deeply interleaved. Requires refactoring into generic Router + pluggable ChannelAdapter before
+the generic parts can move to L1. Estimated effort: medium-high.
+
 ## Plugin System
 
 Each plugin lives in `plugins/<name>/` with `plugin.yaml` declaring MCP tools + HTTP routes.
-Plugin tools are auto-loaded by `feishu/channel.py` (MCP) and `web/app.py` (HTTP).
+Plugin tools are auto-loaded by `channels/feishu/channel.py` (MCP) and `channels/web/app.py` (HTTP).
 Plugin skills in `plugins/<name>/skills/` are symlinked by `make setup`.
 
 Run `make check` to verify plugin discovery.
 
 ## Fork Workflow
 
-Each customer = one forked repo. The fork model:
+Three-layer fork chain: L1 (socialware) → L2 (autoservice) → L3 (tenant).
+Sync direction: `git merge upstream/main` at every level.
+Refinement direction: GitHub PR at every level.
 
-| Upstream (this repo) | Customer Fork |
-|----------------------|---------------|
-| Core framework (`autoservice/`, `feishu/`, `web/`) | Customer plugins (`plugins/{name}/`) |
-| Generic skills (`skills/customer-service/`, `sales-demo/`, etc.) | Customer-specific skills |
-| Plugin loader, channel server, web server | Customer data (`.autoservice/`, credentials) |
+| Layer | Upstream | This Repo |
+|-------|----------|-----------|
+| L1 | `h2oslabs/socialware` | `socialware/` |
+| L2 | (this repo is L2) | `autoservice/`, `channels/`, `skills/`, `plugins/_example/` |
+| L3 | This repo (upstream) | `plugins/<tenant>/`, tenant-specific data |
 
 ### For fork maintainers
 
