@@ -105,6 +105,28 @@ def cmd_logs(follow: bool = False):
         print(f"  文件: {log_file}")
 
 
+def cmd_sessions():
+    """显示当前 sticky session 绑定。"""
+    status_file = Path.cwd() / ".autoservice" / "cc_pool_status.json"
+    if not status_file.exists():
+        print("[cc-pool] 状态文件不存在 — 池未运行")
+        return
+
+    data = json.loads(status_file.read_text(encoding="utf-8"))
+    bindings = data.get("sticky_bindings", [])
+    if not bindings:
+        print("[cc-pool] 无活跃会话绑定")
+        return
+
+    print(f"\n  Sticky Sessions ({len(bindings)}):")
+    print(f"  {'Key':<25} {'Instance':<10} {'Accesses':<10} {'Idle(s)':<10} {'Bound(s)':<10}")
+    print(f"  {'─'*24} {'─'*9} {'─'*9} {'─'*9} {'─'*9}")
+    for b in bindings:
+        print(f"  {b['key']:<25} {b['instance_id']:<10} {b['access_count']:<10} "
+              f"{b['idle_seconds']:<10} {b.get('bound_seconds', '?'):<10}")
+    print()
+
+
 def _print_status(data: dict):
     """格式化输出池状态。"""
     print(f"\n{'─' * 50}")
@@ -115,6 +137,10 @@ def _print_status(data: dict):
     print(f"  可用:       {data.get('available', 0)}")
     print(f"  已借出:     {data.get('checked_out', 0)}")
 
+    sticky = data.get("sticky", 0)
+    if sticky:
+        print(f"  会话绑定:   {sticky}")
+
     if data.get("updated_at"):
         print(f"  更新时间:   {data['updated_at']}")
 
@@ -123,8 +149,16 @@ def _print_status(data: dict):
         print(f"\n  {'ID':<10} {'健康':<6} {'查询数':<8} {'存活(s)':<10}")
         print(f"  {'─'*10} {'─'*5} {'─'*7} {'─'*9}")
         for inst in instances:
-            health = "✓" if inst.get("healthy") else "✗"
+            health = "+" if inst.get("healthy") else "-"
             print(f"  {inst['id']:<10} {health:<6} {inst['query_count']:<8} {inst['age_seconds']:<10}")
+
+    bindings = data.get("sticky_bindings", [])
+    if bindings:
+        print(f"\n  Sticky Sessions:")
+        print(f"  {'Key':<25} {'Instance':<10} {'Accesses':<10} {'Idle(s)':<10}")
+        print(f"  {'─'*24} {'─'*9} {'─'*9} {'─'*9}")
+        for b in bindings:
+            print(f"  {b['key']:<25} {b['instance_id']:<10} {b['access_count']:<10} {b['idle_seconds']:<10}")
     print(f"{'─' * 50}\n")
 
 
@@ -159,9 +193,11 @@ def main():
     elif cmd == "logs":
         follow = "-f" in args or "--follow" in args
         cmd_logs(follow=follow)
+    elif cmd == "sessions":
+        cmd_sessions()
     else:
         print(f"未知命令: {cmd}")
-        print("可用命令: status, start, stop, logs")
+        print("可用命令: status, start, stop, logs, sessions")
         sys.exit(1)
 
 

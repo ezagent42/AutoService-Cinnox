@@ -151,8 +151,10 @@ def load_pool_config(cwd: str | None = None) -> PoolConfig:
         except Exception as e:
             log.warning("Failed to load pool config from %s: %s", yaml_path.name, e)
 
-    _INT_FIELDS = {"min_size", "max_size", "warmup_count", "max_queries_per_instance"}
-    _FLOAT_FIELDS = {"max_lifetime_seconds", "health_check_interval", "checkout_timeout"}
+    _INT_FIELDS = {"min_size", "max_size", "warmup_count", "max_queries_per_instance",
+                    "max_sticky_bindings"}
+    _FLOAT_FIELDS = {"max_lifetime_seconds", "health_check_interval", "checkout_timeout",
+                      "sticky_idle_timeout"}
     _STR_FIELDS = {"cwd", "permission_mode", "model", "cli_path"}
 
     for field_name in _INT_FIELDS | _FLOAT_FIELDS | _STR_FIELDS:
@@ -226,6 +228,27 @@ class CCPool(AsyncPool[CCClient]):
             await instance.client.query(prompt, session_id=session_id)
             async for msg in instance.client.receive_response():
                 yield msg
+
+    async def session_query(
+        self, chat_id: str, prompt: str, **kwargs: Any,
+    ) -> AsyncIterator[Message]:
+        """Stateful multi-turn query: chat_id is sticky-bound to a CC instance.
+
+        The same chat_id always gets the same Claude Code subprocess,
+        preserving conversation context across multiple calls.
+        Use end_session() to release the binding when the conversation ends.
+        """
+        instance = await self.acquire_sticky(chat_id)
+        instance.query_count += 1
+        session_id = kwargs.pop("session_id", chat_id)
+        await instance.client.query(prompt, session_id=session_id)
+        async for msg in instance.client.receive_response():
+            yield msg
+        # Instance stays sticky-bound — NOT returned to pool
+
+    async def end_session(self, chat_id: str) -> None:
+        """End a stateful session, release the instance back to pool."""
+        await self.release_sticky(chat_id)
 
 
 # ---------------------------------------------------------------------------

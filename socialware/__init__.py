@@ -43,7 +43,7 @@ from socialware.plugin_loader import Plugin, PluginTool, PluginRoute, load_plugi
 from socialware.logger import ConversationLogger
 
 # pool framework
-from socialware.pool import PoolableClient, PoolConfig, PooledInstance, AsyncPool
+from socialware.pool import PoolableClient, PoolConfig, PooledInstance, AsyncPool, StickyBinding
 
 __all__ = [
     # core
@@ -68,5 +68,5 @@ __all__ = [
     # logger
     'ConversationLogger',
     # pool
-    'PoolableClient', 'PoolConfig', 'PooledInstance', 'AsyncPool',
+    'PoolableClient', 'PoolConfig', 'PooledInstance', 'AsyncPool', 'StickyBinding',
 ]
