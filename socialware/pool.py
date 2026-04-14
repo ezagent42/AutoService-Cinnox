@@ -77,6 +77,9 @@ class PoolConfig:
     max_lifetime_seconds: float = 3600.0
     health_check_interval: float = 30.0
     checkout_timeout: float = 30.0
+    # Sticky session support
+    sticky_idle_timeout: float = 600.0    # seconds idle before auto-unbind
+    max_sticky_bindings: int = 0          # 0 = no limit (capped by max_size)
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +114,24 @@ class PooledInstance(Generic[T]):
 
 
 # ---------------------------------------------------------------------------
+# Sticky Binding
+# ---------------------------------------------------------------------------
+
+@dataclass
+class StickyBinding(Generic[T]):
+    """Tracks a pool instance bound to a sticky key.
+
+    Sticky bindings keep an instance reserved for a specific key (e.g. chat_id)
+    across multiple requests, enabling stateful multi-turn conversations.
+    """
+    key: str
+    instance: PooledInstance[T]
+    bound_at: float = field(default_factory=time.monotonic)
+    last_accessed_at: float = field(default_factory=time.monotonic)
+    access_count: int = 0
+
+
+# ---------------------------------------------------------------------------
 # AsyncPool
 # ---------------------------------------------------------------------------
 
@@ -142,6 +163,9 @@ class AsyncPool(Generic[T]):
         self._shutdown_flag = False
         self._health_task: asyncio.Task | None = None
         self._instance_counter = 0
+        # Sticky session support
+        self._sticky_bindings: dict[str, StickyBinding[T]] = {}
+        self._sticky_lock = asyncio.Lock()
 
     @property
     def size(self) -> int:
@@ -195,7 +219,8 @@ class AsyncPool(Generic[T]):
         """Graceful shutdown: stop health monitor, disconnect all instances."""
         if not self._started:
             return
-        self._log.info("Shutting down pool (%d instances)...", self.size)
+        self._log.info("Shutting down pool (%d instances, %d sticky)...",
+                       self.size, self.sticky_count)
         self._shutdown_flag = True
 
         if self._health_task and not self._health_task.done():
@@ -205,6 +230,9 @@ class AsyncPool(Generic[T]):
             except asyncio.CancelledError:
                 pass
             self._health_task = None
+
+        # Clear sticky bindings (instances will be destroyed below via _all_instances)
+        self._sticky_bindings.clear()
 
         while not self._available.empty():
             try:
@@ -305,25 +333,160 @@ class AsyncPool(Generic[T]):
             await self.checkin(instance)
 
     # ------------------------------------------------------------------
+    # Sticky Sessions
+    # ------------------------------------------------------------------
+
+    async def acquire_sticky(
+        self, key: str, timeout: float | None = None,
+    ) -> PooledInstance[T]:
+        """Acquire an instance bound to a sticky key.
+
+        First call for a key checks out from pool and binds it.
+        Subsequent calls return the same instance.
+        If the bound instance is unhealthy, it is replaced transparently.
+
+        Args:
+            key: Sticky binding key (e.g. chat_id).
+            timeout: Override checkout timeout.
+
+        Returns:
+            The bound PooledInstance.
+
+        Raises:
+            RuntimeError: Pool not running, or max_sticky_bindings exceeded.
+            TimeoutError: No instance available within timeout.
+        """
+        if not self._started or self._shutdown_flag:
+            raise RuntimeError("Pool is not running")
+
+        async with self._sticky_lock:
+            binding = self._sticky_bindings.get(key)
+            if binding is not None:
+                if binding.instance.is_healthy:
+                    binding.last_accessed_at = time.monotonic()
+                    binding.access_count += 1
+                    self._log.debug(
+                        "Sticky hit: key=%s instance=%s (access #%d)",
+                        key, binding.instance.id, binding.access_count,
+                    )
+                    return binding.instance
+                # Unhealthy — destroy and fall through to create new
+                self._log.info(
+                    "Sticky instance %s unhealthy for key=%s, replacing",
+                    binding.instance.id, key,
+                )
+                await self._destroy_instance(binding.instance)
+                del self._sticky_bindings[key]
+
+            # Check max_sticky_bindings limit
+            max_sticky = self._config.max_sticky_bindings
+            if max_sticky > 0 and len(self._sticky_bindings) >= max_sticky:
+                raise RuntimeError(
+                    f"Max sticky bindings reached ({max_sticky}). "
+                    f"Release existing sessions or increase max_sticky_bindings."
+                )
+
+        # Checkout a new instance from the pool (outside sticky lock)
+        instance = await self.checkout(timeout=timeout)
+
+        async with self._sticky_lock:
+            self._sticky_bindings[key] = StickyBinding(
+                key=key, instance=instance,
+            )
+            self._log.info(
+                "Sticky bind: key=%s -> instance=%s (total sticky: %d)",
+                key, instance.id, len(self._sticky_bindings),
+            )
+        return instance
+
+    async def release_sticky(self, key: str) -> None:
+        """Release a sticky binding, return instance to the pool.
+
+        No-op if key is not bound.
+        """
+        async with self._sticky_lock:
+            binding = self._sticky_bindings.pop(key, None)
+
+        if binding is None:
+            return
+
+        self._log.info(
+            "Sticky release: key=%s instance=%s (accesses=%d)",
+            key, binding.instance.id, binding.access_count,
+        )
+        await self.checkin(binding.instance)
+
+    @property
+    def sticky_count(self) -> int:
+        """Number of active sticky bindings."""
+        return len(self._sticky_bindings)
+
+    async def _cleanup_sticky(self) -> None:
+        """Clean up expired or unhealthy sticky bindings.
+
+        Called periodically from _health_check_loop.
+        """
+        idle_timeout = self._config.sticky_idle_timeout
+        now = time.monotonic()
+        expired: list[str] = []
+
+        async with self._sticky_lock:
+            for key, binding in self._sticky_bindings.items():
+                idle_secs = now - binding.last_accessed_at
+                if idle_secs >= idle_timeout:
+                    expired.append(key)
+                    self._log.info(
+                        "Sticky expired: key=%s instance=%s (idle %.0fs)",
+                        key, binding.instance.id, idle_secs,
+                    )
+                elif not binding.instance.is_healthy:
+                    expired.append(key)
+                    self._log.info(
+                        "Sticky unhealthy: key=%s instance=%s",
+                        key, binding.instance.id,
+                    )
+
+            removed_bindings = []
+            for key in expired:
+                binding = self._sticky_bindings.pop(key)
+                removed_bindings.append(binding)
+
+        # Destroy outside lock
+        for binding in removed_bindings:
+            await self._destroy_instance(binding.instance)
+
+    # ------------------------------------------------------------------
     # Status
     # ------------------------------------------------------------------
 
     def status(self) -> dict[str, Any]:
         """Return pool status for monitoring."""
+        now = time.monotonic()
         return {
             "started": self._started,
             "total": self.size,
             "available": self.available_count,
-            "checked_out": self.size - self.available_count,
+            "sticky": self.sticky_count,
+            "checked_out": self.size - self.available_count - self.sticky_count,
             "max_size": self._config.max_size,
             "instances": [
                 {
                     "id": inst.id,
                     "query_count": inst.query_count,
-                    "age_seconds": round(time.monotonic() - inst.created_at, 1),
+                    "age_seconds": round(now - inst.created_at, 1),
                     "healthy": inst.is_healthy,
                 }
                 for inst in self._all_instances.values()
+            ],
+            "sticky_bindings": [
+                {
+                    "key": b.key,
+                    "instance_id": b.instance.id,
+                    "access_count": b.access_count,
+                    "idle_seconds": round(now - b.last_accessed_at, 1),
+                    "bound_seconds": round(now - b.bound_at, 1),
+                }
+                for b in self._sticky_bindings.values()
             ],
         }
 
@@ -395,7 +558,10 @@ class AsyncPool(Generic[T]):
 
             await self._ensure_min_size()
 
+            # Clean up expired sticky bindings
+            await self._cleanup_sticky()
+
             self._log.debug(
-                "Health check: %d total, %d available, %d recycled",
-                self.size, self.available_count, len(dead),
+                "Health check: %d total, %d available, %d sticky, %d recycled",
+                self.size, self.available_count, self.sticky_count, len(dead),
             )

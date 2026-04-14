@@ -151,8 +151,10 @@ def load_pool_config(cwd: str | None = None) -> PoolConfig:
         except Exception as e:
             log.warning("Failed to load pool config from %s: %s", yaml_path.name, e)
 
-    _INT_FIELDS = {"min_size", "max_size", "warmup_count", "max_queries_per_instance"}
-    _FLOAT_FIELDS = {"max_lifetime_seconds", "health_check_interval", "checkout_timeout"}
+    _INT_FIELDS = {"min_size", "max_size", "warmup_count", "max_queries_per_instance",
+                    "max_sticky_bindings"}
+    _FLOAT_FIELDS = {"max_lifetime_seconds", "health_check_interval", "checkout_timeout",
+                      "sticky_idle_timeout"}
     _STR_FIELDS = {"cwd", "permission_mode", "model", "cli_path"}
 
     for field_name in _INT_FIELDS | _FLOAT_FIELDS | _STR_FIELDS:
@@ -173,8 +175,19 @@ def load_pool_config(cwd: str | None = None) -> PoolConfig:
 # CC client factory
 # ---------------------------------------------------------------------------
 
-async def create_cc_client(config: PoolConfig) -> CCClient:
-    """Factory: creates and connects a CCClient from pool config."""
+async def create_cc_client(
+    config: PoolConfig,
+    mcp_servers: dict | None = None,
+    system_prompt: str | None = None,
+) -> CCClient:
+    """Factory: creates and connects a CCClient from pool config.
+
+    Args:
+        config: Pool configuration.
+        mcp_servers: Optional MCP server configs to inject (e.g. channel tools).
+                     Dict of name -> McpServerConfig (stdio, SSE, HTTP, or SDK type).
+        system_prompt: Optional system prompt for the Claude Code session.
+    """
     cwd = config.cwd or str(Path.cwd())
     cwd_path = Path(cwd).absolute()
     plugin_path = cwd_path / ".autoservice" / ".claude"
@@ -196,6 +209,11 @@ async def create_cc_client(config: PoolConfig) -> CCClient:
         cli_path=config.cli_path,
     )
 
+    if mcp_servers:
+        options.mcp_servers = mcp_servers
+    if system_prompt:
+        options.system_prompt = system_prompt
+
     sdk_client = ClaudeSDKClient(options)
     client = CCClient(sdk_client)
     await client.connect()
@@ -207,13 +225,25 @@ async def create_cc_client(config: PoolConfig) -> CCClient:
 # ---------------------------------------------------------------------------
 
 class CCPool(AsyncPool[CCClient]):
-    """Pool of pre-created Claude Code SDK instances."""
+    """Pool of pre-created Claude Code SDK instances.
 
-    def __init__(self, config: PoolConfig | None = None):
+    Args:
+        config: Pool configuration.
+        mcp_servers: Optional MCP server configs injected into every instance.
+        system_prompt: Optional system prompt for all instances.
+    """
+
+    def __init__(
+        self,
+        config: PoolConfig | None = None,
+        mcp_servers: dict | None = None,
+        system_prompt: str | None = None,
+    ):
         cfg = config or PoolConfig()
         super().__init__(
             config=cfg,
-            factory=lambda: create_cc_client(cfg),
+            factory=lambda: create_cc_client(cfg, mcp_servers=mcp_servers,
+                                              system_prompt=system_prompt),
             instance_prefix="cc",
             logger=log,
         )
@@ -226,6 +256,27 @@ class CCPool(AsyncPool[CCClient]):
             await instance.client.query(prompt, session_id=session_id)
             async for msg in instance.client.receive_response():
                 yield msg
+
+    async def session_query(
+        self, chat_id: str, prompt: str, **kwargs: Any,
+    ) -> AsyncIterator[Message]:
+        """Stateful multi-turn query: chat_id is sticky-bound to a CC instance.
+
+        The same chat_id always gets the same Claude Code subprocess,
+        preserving conversation context across multiple calls.
+        Use end_session() to release the binding when the conversation ends.
+        """
+        instance = await self.acquire_sticky(chat_id)
+        instance.query_count += 1
+        session_id = kwargs.pop("session_id", chat_id)
+        await instance.client.query(prompt, session_id=session_id)
+        async for msg in instance.client.receive_response():
+            yield msg
+        # Instance stays sticky-bound — NOT returned to pool
+
+    async def end_session(self, chat_id: str) -> None:
+        """End a stateful session, release the instance back to pool."""
+        await self.release_sticky(chat_id)
 
 
 # ---------------------------------------------------------------------------

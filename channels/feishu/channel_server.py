@@ -59,11 +59,13 @@ class ChannelServer:
         port: int = 9999,
         feishu_enabled: bool = True,
         admin_chat_id: str | None = None,
+        pool_mode: bool = False,
     ) -> None:
         self.host = host
         self.port = port
         self.feishu_enabled = feishu_enabled
         self.admin_chat_id = admin_chat_id
+        self.pool_mode = pool_mode
 
         # Route tables
         self.exact_routes: dict[str, Instance] = {}      # chat_id -> Instance
@@ -77,6 +79,9 @@ class ChannelServer:
         self._server: websockets.asyncio.server.Server | None = None
         self._tasks: list[asyncio.Task] = []
 
+        # CC Pool (pool_mode only)
+        self._pool = None  # Initialized in start() if pool_mode=True
+
     # ------------------------------------------------------------------
     # Public lifecycle
     # ------------------------------------------------------------------
@@ -84,6 +89,10 @@ class ChannelServer:
     async def start(self) -> None:
         """Start the WebSocket server (and optionally the Feishu connection)."""
         self._stop_event.clear()
+
+        # Start CC Pool if pool_mode is enabled
+        if self.pool_mode:
+            await self._start_pool()
 
         self._server = await websockets.serve(
             self._handle_client,
@@ -98,12 +107,19 @@ class ChannelServer:
             task = asyncio.create_task(self._run_feishu_safe(), name="feishu-ws")
             self._tasks.append(task)
 
-        await self._notify_admin("Channel-Server online")
+        mode_str = " (pool_mode)" if self.pool_mode else ""
+        await self._notify_admin(f"Channel-Server online{mode_str}")
 
     async def stop(self) -> None:
         """Gracefully shut down."""
         log.info("Shutting down channel-server ...")
         self._stop_event.set()
+
+        # Shutdown CC Pool
+        if self._pool is not None:
+            log.info("Shutting down CC Pool...")
+            await self._pool.shutdown()
+            self._pool = None
 
         # Cancel background tasks
         for t in self._tasks:
@@ -123,6 +139,115 @@ class ChannelServer:
 
         await self._notify_admin("Channel-Server offline")
         log.info("Channel-server stopped.")
+
+    # ------------------------------------------------------------------
+    # CC Pool integration (pool_mode)
+    # ------------------------------------------------------------------
+
+    async def _start_pool(self) -> None:
+        """Initialize and start the CC Pool with channel tools injected."""
+        from autoservice.cc_pool import CCPool, load_pool_config
+        from channels.feishu.channel_tools import create_channel_mcp_server
+        from socialware.plugin_loader import discover
+
+        config = load_pool_config()
+
+        # Load plugin tools
+        plugins = discover("plugins")
+        all_tools = []
+        for p in plugins:
+            all_tools.extend(p.tools)
+
+        # Build instructions
+        instructions_path = Path(__file__).parent / "channel-instructions.md"
+        identity_path = Path(__file__).resolve().parent.parent / ".autoservice" / "identity.yaml"
+
+        instructions = ""
+        if identity_path.exists():
+            try:
+                import yaml
+                data = yaml.safe_load(identity_path.read_text(encoding="utf-8"))
+                lines = [f"## Identity\n"]
+                lines.append(f"You are **{data.get('name', 'AI Bot')}** — {data.get('description', '')}.")
+                for mode_key, mode_name in data.get("modes", {}).items():
+                    lines.append(f"- In {mode_key} mode: introduce yourself as **{mode_name}**")
+                instructions = "\n".join(lines) + "\n\n"
+            except Exception as e:
+                log.warning("Failed to load identity.yaml: %s", e)
+        if instructions_path.exists():
+            instructions += instructions_path.read_text(encoding="utf-8")
+
+        # Create MCP server with callbacks to channel_server's reply/react
+        channel_mcp = create_channel_mcp_server(
+            reply_callback=self._pool_reply_callback,
+            react_callback=self._pool_react_callback,
+            plugin_tools=all_tools,
+            instructions=instructions,
+        )
+
+        self._pool = CCPool(
+            config=config,
+            mcp_servers={"channel-tools": {"type": "sdk", "name": "channel-tools", "instance": channel_mcp}},
+            system_prompt=instructions,
+        )
+        await self._pool.start()
+        log.info("CC Pool started in pool_mode (min=%d, max=%d)",
+                 config.min_size, config.max_size)
+
+    async def _pool_reply_callback(self, chat_id: str, text: str) -> None:
+        """Callback for pool-managed instances: route reply back to Feishu/web."""
+        if chat_id.startswith("oc_"):
+            await self._reply_feishu(chat_id, text)
+        elif chat_id.startswith("web_"):
+            target = self.exact_routes.get(chat_id) or self._find_prefix_instance(chat_id)
+            if target is not None:
+                await self._send(target.ws, {"type": "reply", "chat_id": chat_id, "text": text})
+            else:
+                log.warning("Pool reply for web chat_id=%s but no web instance found", chat_id)
+        else:
+            log.warning("Pool reply for unknown prefix: chat_id=%s", chat_id)
+
+    async def _pool_react_callback(self, message_id: str, emoji_type: str) -> None:
+        """Callback for pool-managed instances: send Feishu reaction."""
+        if self._feishu_client:
+            try:
+                threading.Thread(
+                    target=self._add_reaction, args=(message_id, emoji_type), daemon=True,
+                ).start()
+            except Exception as e:
+                log.warning("Pool react failed: %s", e)
+
+    async def _handle_pool_message(self, chat_id: str, message: dict) -> None:
+        """Route a message through the CC Pool instead of WebSocket instances.
+
+        Called when pool_mode is enabled and no registered instance handles this chat_id.
+        """
+        try:
+            # Format prompt as channel notification content
+            user = message.get("user", "unknown")
+            text = message.get("text", "")
+            source = message.get("source", "feishu")
+            ts = message.get("ts", "")
+            meta_parts = [f"chat_id={chat_id}", f"user={user}", f"source={source}"]
+            if ts:
+                meta_parts.append(f"ts={ts}")
+            if message.get("business_mode"):
+                meta_parts.append(f"business_mode={message['business_mode']}")
+            if message.get("runtime_mode"):
+                meta_parts.append(f"runtime_mode={message['runtime_mode']}")
+
+            prompt = f"<channel {' '.join(meta_parts)}>\n{text}\n</channel>"
+
+            log.info("Pool routing: chat_id=%s user=%s text=%s",
+                     chat_id, user, text[:40])
+
+            async for msg in self._pool.session_query(chat_id, prompt):
+                # Responses are handled by the reply_callback in the MCP tools
+                # We just need to consume the stream here
+                pass
+
+        except Exception as e:
+            log.error("Pool message handling failed for chat_id=%s: %s", chat_id, e)
 
     # ------------------------------------------------------------------
     # Feishu integration
@@ -886,7 +1011,15 @@ class ChannelServer:
                 wc_msg = message
             await self._send(inst.ws, wc_msg)
 
-        # 4. Log actionable info when no dedicated instance exists
+        # 4. Pool mode fallback — route to CC Pool if no registered instance
+        if routed_instance is None and not self.wildcard_instances and self._pool is not None:
+            asyncio.create_task(
+                self._handle_pool_message(chat_id, message),
+                name=f"pool-msg-{chat_id}",
+            )
+            return
+
+        # 5. Log actionable info when no dedicated instance exists
         if routed_instance is None and self.wildcard_instances:
             user = message.get("user", "unknown")
             source = message.get("source", "?")
@@ -895,7 +1028,7 @@ class ChannelServer:
                 "   To start dedicated instance:  ./autoservice.sh %s",
                 source, user, chat_id,
             )
-        elif routed_instance is None and not self.wildcard_instances:
+        elif routed_instance is None and not self.wildcard_instances and self._pool is None:
             log.warning("No route for chat_id=%s, message dropped", chat_id)
 
     # ------------------------------------------------------------------
@@ -1011,6 +1144,10 @@ class ChannelServer:
         lines.append("📡 渠道:")
         lines.append(f"  • 飞书 IM: {'✅ 在线' if feishu_ok else '❌ 离线'}")
         lines.append(f"  • Web 页面: {'✅ 在线' if web_ok else '❌ 离线'}")
+        if self._pool:
+            pool_status = self._pool.status()
+            lines.append(f"  • CC Pool: ✅ {pool_status['total']}/{pool_status['max_size']} 实例, "
+                         f"{pool_status['sticky']} 会话绑定")
         lines.append("")
 
         # Active conversations with numbers
