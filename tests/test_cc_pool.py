@@ -137,7 +137,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_start_creates_warm_instances(self, pool_config):
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -148,7 +148,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_checkout_returns_instance(self, pool_config):
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -161,7 +161,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_checkout_checkin_cycle(self, pool_config):
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -174,7 +174,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_acquire_context_manager(self, pool_config):
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -190,7 +190,7 @@ class TestCCPool:
     async def test_on_demand_creation(self):
         """When queue is empty but under max, creates on demand."""
         config = PoolConfig(min_size=0, max_size=2, warmup_count=0, health_check_interval=100)
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -205,7 +205,7 @@ class TestCCPool:
     async def test_pool_exhaustion_timeout(self):
         """When at max_size and all checked out, timeout."""
         config = PoolConfig(min_size=0, max_size=1, warmup_count=1, health_check_interval=100, checkout_timeout=0.5)
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -219,7 +219,7 @@ class TestCCPool:
     async def test_checkin_recycles_unhealthy(self):
         """Unhealthy instances are destroyed on checkin."""
         config = PoolConfig(min_size=0, max_size=2, warmup_count=1, health_check_interval=100)
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -238,7 +238,7 @@ class TestCCPool:
         """Instances exceeding max_queries_per_instance are recycled."""
         config = PoolConfig(min_size=0, max_size=2, warmup_count=1,
                             max_queries_per_instance=3, health_check_interval=100)
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -252,7 +252,7 @@ class TestCCPool:
     @pytest.mark.asyncio
     async def test_shutdown_disconnects_all(self, pool_config):
         clients = []
-        def track_client(cfg):
+        def track_client(cfg, **kw):
             c = make_mock_client()
             clients.append(c)
             return c
@@ -281,7 +281,7 @@ class TestCCPool:
 
     @pytest.mark.asyncio
     async def test_status(self, pool_config):
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(pool_config)
             await pool.start()
             try:
@@ -298,7 +298,7 @@ class TestCCPool:
     async def test_query_convenience(self):
         """Pool.query() checks out, queries, and checks in."""
         config = PoolConfig(min_size=0, max_size=1, warmup_count=1, health_check_interval=100)
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -329,7 +329,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_acquire_sticky_creates_binding(self, sticky_config):
         """First acquire_sticky for a key creates a new binding."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -344,7 +344,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_acquire_sticky_reuses_instance(self, sticky_config):
         """Second acquire_sticky for same key returns the same instance."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -359,7 +359,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_acquire_sticky_different_keys(self, sticky_config):
         """Different keys get different instances."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -374,7 +374,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_release_sticky_returns_to_pool(self, sticky_config):
         """After release, instance goes back to available pool."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -391,7 +391,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_release_sticky_nonexistent_noop(self, sticky_config):
         """Releasing a non-existent key is a no-op."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -402,7 +402,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_sticky_unhealthy_replaced(self, sticky_config):
         """Unhealthy sticky instance is replaced on next acquire."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -424,7 +424,7 @@ class TestStickySession:
             min_size=0, max_size=2, warmup_count=0,
             health_check_interval=100, checkout_timeout=0.5,
         )
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -444,7 +444,7 @@ class TestStickySession:
             health_check_interval=100,
             sticky_idle_timeout=0.1,  # 100ms for testing
         )
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:
@@ -461,7 +461,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_session_query_multi_turn(self, sticky_config):
         """session_query uses same instance for same chat_id."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -486,7 +486,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_end_session(self, sticky_config):
         """end_session releases the sticky binding."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -504,7 +504,7 @@ class TestStickySession:
     async def test_shutdown_cleans_sticky(self, sticky_config):
         """Shutdown destroys all sticky bindings."""
         clients = []
-        def track_client(cfg):
+        def track_client(cfg, **kw):
             c = make_mock_client()
             clients.append(c)
             return c
@@ -525,7 +525,7 @@ class TestStickySession:
     @pytest.mark.asyncio
     async def test_status_includes_sticky(self, sticky_config):
         """Status dict includes sticky binding info."""
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(sticky_config)
             await pool.start()
             try:
@@ -546,7 +546,7 @@ class TestStickySession:
             health_check_interval=100,
             max_sticky_bindings=1,
         )
-        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg: make_mock_client()):
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
             pool = CCPool(config)
             await pool.start()
             try:

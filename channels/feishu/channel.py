@@ -235,44 +235,21 @@ def create_server() -> Server:
 
 
 def register_tools(server: Server, plugin_tools: list):
+    """Register channel tools on the MCP server (legacy stdio mode).
+
+    Uses channel_tools.py definitions but with callbacks that route
+    through the module-level _channel_client WebSocket connection.
+    """
+    from channels.feishu.channel_tools import REPLY_TOOL, REACT_TOOL
 
     @server.list_tools()
     async def handle_list_tools() -> list[Tool]:
-        core_tools = [
-            Tool(
-                name="reply",
-                description=(
-                    "Send a message to a Feishu chat. The user reads Feishu, not this "
-                    "session -- anything you want them to see must go through this tool. "
-                    "chat_id is from the inbound <channel> tag (oc_xxx format)."
-                ),
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "chat_id": {"type": "string", "description": "Feishu chat ID (oc_xxx)"},
-                        "text": {"type": "string", "description": "Message text"},
-                    },
-                    "required": ["chat_id", "text"],
-                },
-            ),
-            Tool(
-                name="react",
-                description="Add an emoji reaction to a Feishu message",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "message_id": {"type": "string", "description": "Message ID (om_xxx)"},
-                        "emoji_type": {"type": "string", "description": "Feishu emoji (THUMBSUP, DONE, OK)"},
-                    },
-                    "required": ["message_id", "emoji_type"],
-                },
-            ),
-        ]
-        dynamic_tools = [
+        core = [REPLY_TOOL, REACT_TOOL]
+        dynamic = [
             Tool(name=pt.name, description=pt.description, inputSchema=pt.input_schema)
             for pt in plugin_tools
         ]
-        return core_tools + dynamic_tools
+        return core + dynamic
 
     @server.call_tool()
     async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
@@ -280,7 +257,6 @@ def register_tools(server: Server, plugin_tools: list):
             return _handle_reply(arguments)
         elif name == "react":
             return _handle_react(arguments)
-        # Plugin tools
         for pt in plugin_tools:
             if pt.name == name:
                 result = pt.handler(**arguments)

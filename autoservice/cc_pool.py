@@ -175,8 +175,19 @@ def load_pool_config(cwd: str | None = None) -> PoolConfig:
 # CC client factory
 # ---------------------------------------------------------------------------
 
-async def create_cc_client(config: PoolConfig) -> CCClient:
-    """Factory: creates and connects a CCClient from pool config."""
+async def create_cc_client(
+    config: PoolConfig,
+    mcp_servers: dict | None = None,
+    system_prompt: str | None = None,
+) -> CCClient:
+    """Factory: creates and connects a CCClient from pool config.
+
+    Args:
+        config: Pool configuration.
+        mcp_servers: Optional MCP server configs to inject (e.g. channel tools).
+                     Dict of name -> McpServerConfig (stdio, SSE, HTTP, or SDK type).
+        system_prompt: Optional system prompt for the Claude Code session.
+    """
     cwd = config.cwd or str(Path.cwd())
     cwd_path = Path(cwd).absolute()
     plugin_path = cwd_path / ".autoservice" / ".claude"
@@ -198,6 +209,11 @@ async def create_cc_client(config: PoolConfig) -> CCClient:
         cli_path=config.cli_path,
     )
 
+    if mcp_servers:
+        options.mcp_servers = mcp_servers
+    if system_prompt:
+        options.system_prompt = system_prompt
+
     sdk_client = ClaudeSDKClient(options)
     client = CCClient(sdk_client)
     await client.connect()
@@ -209,13 +225,25 @@ async def create_cc_client(config: PoolConfig) -> CCClient:
 # ---------------------------------------------------------------------------
 
 class CCPool(AsyncPool[CCClient]):
-    """Pool of pre-created Claude Code SDK instances."""
+    """Pool of pre-created Claude Code SDK instances.
 
-    def __init__(self, config: PoolConfig | None = None):
+    Args:
+        config: Pool configuration.
+        mcp_servers: Optional MCP server configs injected into every instance.
+        system_prompt: Optional system prompt for all instances.
+    """
+
+    def __init__(
+        self,
+        config: PoolConfig | None = None,
+        mcp_servers: dict | None = None,
+        system_prompt: str | None = None,
+    ):
         cfg = config or PoolConfig()
         super().__init__(
             config=cfg,
-            factory=lambda: create_cc_client(cfg),
+            factory=lambda: create_cc_client(cfg, mcp_servers=mcp_servers,
+                                              system_prompt=system_prompt),
             instance_prefix="cc",
             logger=log,
         )
