@@ -565,3 +565,128 @@ class TestStickySession:
         config = load_pool_config(cwd="/nonexistent")
         assert config.sticky_idle_timeout == 300.0
         assert config.max_sticky_bindings == 10
+
+
+# ---------------------------------------------------------------------------
+# Sticky release callback tests
+# ---------------------------------------------------------------------------
+
+class TestStickyReleaseCallback:
+    @pytest.mark.asyncio
+    async def test_callback_fires_on_expiry(self):
+        """on_sticky_release callback fires when sticky binding expires."""
+        config = PoolConfig(
+            min_size=0, max_size=4, warmup_count=0,
+            health_check_interval=100,
+            sticky_idle_timeout=0.1,  # 100ms for testing
+        )
+        released_keys: list[str] = []
+
+        async def on_release(key: str) -> None:
+            released_keys.append(key)
+
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
+            pool = CCPool(config, on_sticky_release=on_release)
+            await pool.start()
+            try:
+                await pool.acquire_sticky("chat_expire_001")
+                assert pool.sticky_count == 1
+
+                await asyncio.sleep(0.2)  # Wait for idle timeout
+                await pool._cleanup_sticky()
+
+                assert pool.sticky_count == 0
+                assert "chat_expire_001" in released_keys
+            finally:
+                await pool.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_callback_fires_on_manual_release(self):
+        """on_sticky_release callback fires on explicit release_sticky call."""
+        config = PoolConfig(
+            min_size=0, max_size=4, warmup_count=0,
+            health_check_interval=100,
+        )
+        released_keys: list[str] = []
+
+        async def on_release(key: str) -> None:
+            released_keys.append(key)
+
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
+            pool = CCPool(config, on_sticky_release=on_release)
+            await pool.start()
+            try:
+                await pool.acquire_sticky("chat_manual_001")
+                await pool.release_sticky("chat_manual_001")
+                assert "chat_manual_001" in released_keys
+            finally:
+                await pool.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_no_callback_when_none(self):
+        """No error when on_sticky_release is None (default)."""
+        config = PoolConfig(
+            min_size=0, max_size=4, warmup_count=0,
+            health_check_interval=100,
+            sticky_idle_timeout=0.1,
+        )
+        with patch("autoservice.cc_pool.create_cc_client", side_effect=lambda cfg, **kw: make_mock_client()):
+            pool = CCPool(config)  # No callback
+            await pool.start()
+            try:
+                await pool.acquire_sticky("chat_none_001")
+                await asyncio.sleep(0.2)
+                await pool._cleanup_sticky()  # Should not raise
+                assert pool.sticky_count == 0
+
+                # Also test manual release without callback
+                await pool.acquire_sticky("chat_none_002")
+                await pool.release_sticky("chat_none_002")  # Should not raise
+            finally:
+                await pool.shutdown()
+
+
+class TestMcpServerOverride:
+    @pytest.mark.asyncio
+    async def test_setting_sources_skips_project(self):
+        """Pool instances use setting_sources=["user"] to skip .mcp.json."""
+        from autoservice.cc_pool import create_cc_client, PoolConfig
+        captured = {}
+        with patch("autoservice.cc_pool.ClaudeSDKClient") as MockSDK, \
+             patch("autoservice.cc_pool.CCClient") as MockClient:
+            mock_client = AsyncMock()
+            mock_client.connect = AsyncMock()
+            MockClient.return_value = mock_client
+            def capture(options):
+                captured["setting_sources"] = options.setting_sources
+                captured["mcp_servers"] = options.mcp_servers
+                return MagicMock()
+            MockSDK.side_effect = capture
+            await create_cc_client(
+                PoolConfig(),
+                mcp_servers={"channel-tools": {"type": "sdk", "name": "ct"}},
+            )
+            # setting_sources should skip "project" (which loads .mcp.json)
+            assert captured["setting_sources"] == ["user"]
+            # mcp_servers should only contain what was explicitly passed
+            assert "channel-tools" in captured["mcp_servers"]
+            assert "autoservice-channel" not in captured["mcp_servers"]
+
+    @pytest.mark.asyncio
+    async def test_plugins_loads_claude_dir(self):
+        """Pool instances load .claude/ as plugin for skills access."""
+        from autoservice.cc_pool import create_cc_client, PoolConfig
+        captured = {}
+        with patch("autoservice.cc_pool.ClaudeSDKClient") as MockSDK, \
+             patch("autoservice.cc_pool.CCClient") as MockClient:
+            mock_client = AsyncMock()
+            mock_client.connect = AsyncMock()
+            MockClient.return_value = mock_client
+            def capture(options):
+                captured["plugins"] = options.plugins
+                return MagicMock()
+            MockSDK.side_effect = capture
+            await create_cc_client(PoolConfig())
+            # Should load .claude/ directory as plugin
+            assert captured["plugins"] is not None
+            assert any(".claude" in p.get("path", "") for p in captured["plugins"])

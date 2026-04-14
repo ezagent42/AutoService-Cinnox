@@ -23,6 +23,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Awaitable, Callable
 from typing import Any, AsyncIterator
 
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
@@ -190,9 +191,13 @@ async def create_cc_client(
     """
     cwd = config.cwd or str(Path.cwd())
     cwd_path = Path(cwd).absolute()
-    plugin_path = cwd_path / ".autoservice" / ".claude"
 
-    env = {}
+    # Load .claude/ as plugin (provides skills) but skip project settings
+    # to avoid auto-loading .mcp.json (which would spawn channel.py).
+    claude_dir = cwd_path / ".claude"
+    plugins = [{"type": "local", "path": str(claude_dir)}] if claude_dir.exists() else None
+
+    env = {"AUTOSERVICE_POOL_INSTANCE": "1"}
     for var in ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"):
         val = os.environ.get(var)
         if val:
@@ -200,9 +205,8 @@ async def create_cc_client(
 
     options = ClaudeAgentOptions(
         cwd=cwd,
-        setting_sources=None,
-        plugins=[{"type": "local", "path": str(plugin_path)}]
-        if plugin_path.exists() else None,
+        setting_sources=["user"],  # skip "project"/"local" → skips .mcp.json
+        plugins=plugins,
         env=env,
         permission_mode=config.permission_mode,
         model=config.model,
@@ -238,6 +242,7 @@ class CCPool(AsyncPool[CCClient]):
         config: PoolConfig | None = None,
         mcp_servers: dict | None = None,
         system_prompt: str | None = None,
+        on_sticky_release: Callable[[str], Awaitable[None]] | None = None,
     ):
         cfg = config or PoolConfig()
         super().__init__(
@@ -246,6 +251,7 @@ class CCPool(AsyncPool[CCClient]):
                                               system_prompt=system_prompt),
             instance_prefix="cc",
             logger=log,
+            on_sticky_release=on_sticky_release,
         )
 
     async def query(self, prompt: str, **kwargs: Any) -> AsyncIterator[Message]:

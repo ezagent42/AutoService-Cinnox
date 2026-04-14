@@ -301,12 +301,17 @@ async def main():
     for p in plugins:
         all_tools.extend(p.tools)
 
+    # Pool instances use channel-tools MCP (SDK-injected) for reply/react,
+    # not the WebSocket channel. Skip WebSocket registration to avoid
+    # interfering with pool routing.
+    skip_ws = os.environ.get("AUTOSERVICE_POOL_INSTANCE") == "1"
+
     chat_id_str = os.environ.get("AUTOSERVICE_CHAT_ID", "*")
     chat_ids = [chat_id_str]
     server_port = os.environ.get("CHANNEL_SERVER_PORT", "9999")
     server_url = f"ws://localhost:{server_port}"
 
-    _channel_client = ChannelClient(
+    _channel_client = None if skip_ws else ChannelClient(
         server_url=server_url,
         chat_ids=chat_ids,
         runtime_mode=os.environ.get("AUTOSERVICE_RUNTIME_MODE", "production"),
@@ -338,8 +343,9 @@ async def main():
         try:
             async with anyio.create_task_group() as tg:
                 tg.start_soon(server.run, read_stream, write_stream, init_opts)
-                tg.start_soon(_channel_client.connect)
-                tg.start_soon(consume_messages)
+                if _channel_client is not None:
+                    tg.start_soon(_channel_client.connect)
+                    tg.start_soon(consume_messages)
         except Exception as e:
             log.error(f"Task group error: {e}")
 
