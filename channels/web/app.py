@@ -48,7 +48,7 @@ if os.path.exists(_env_path):
 
 
 # ── Paths & config ────────────────────────────────────────────────────────
-ROOT             = Path(__file__).parent.parent
+ROOT             = Path(__file__).parent.parent.parent
 STATIC           = Path(__file__).parent / "static"
 AUTOSERVICE_DIR  = ROOT / ".autoservice"
 SESSIONS_DIR     = ROOT / ".autoservice" / "database" / "sessions"
@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
 
     # Discover plugins and mount HTTP routes
     try:
-        from autoservice.plugin_loader import discover
+        from socialware.plugin_loader import discover
         plugins = discover(ROOT / "plugins")
         for plugin in plugins:
             for route in plugin.routes:
