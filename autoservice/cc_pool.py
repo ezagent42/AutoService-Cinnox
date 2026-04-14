@@ -193,7 +193,7 @@ async def create_cc_client(
     cwd_path = Path(cwd).absolute()
     plugin_path = cwd_path / ".autoservice" / ".claude"
 
-    env = {}
+    env = {"AUTOSERVICE_POOL_INSTANCE": "1"}
     for var in ("http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"):
         val = os.environ.get(var)
         if val:
@@ -215,7 +215,7 @@ async def create_cc_client(
         # pool instances from spawning channel.py WebSocket clients.
         merged = dict(mcp_servers)
         if "autoservice-channel" not in merged:
-            merged["autoservice-channel"] = {"disabled": True}
+            merged["autoservice-channel"] = {"command": "true"}
         options.mcp_servers = merged
     if system_prompt:
         options.system_prompt = system_prompt
