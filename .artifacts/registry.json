@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "project": "autoservice",
+  "created_at": "2026-04-10T07:59:01Z",
+  "artifacts": [
+    {
+      "id": "coverage-matrix-001",
+      "name": "Initial coverage matrix",
+      "type": "coverage-matrix",
+      "status": "draft",
+      "producer": "skill-0",
+      "consumers": [],
+      "path": ".artifacts/coverage/coverage-matrix.md",
+      "created_at": "2026-04-10T08:36:26Z",
+      "updated_at": "2026-04-10T08:36:26Z",
+      "related_ids": []
+    },
+    {
+      "id": "bootstrap-report-001",
+      "name": "Bootstrap execution report",
+      "type": "e2e-report",
+      "status": "executed",
+      "producer": "skill-0",
+      "consumers": [],
+      "path": ".artifacts/bootstrap/bootstrap-report.md",
+      "created_at": "2026-04-10T08:48:47Z",
+      "updated_at": "2026-04-10T08:48:47Z",
+      "related_ids": [
+        "coverage-matrix-001"
+      ]
+    }
+  ]
+}

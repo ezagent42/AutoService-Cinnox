@@ -1,0 +1,522 @@
+{
+  "module_name": "feishu",
+  "module_path": "feishu/",
+  "description": "Feishu IM channel: MCP stdio bridge (channel.py) and standalone WebSocket message-routing daemon (channel_server.py) for multi-instance customer service",
+  "files_analyzed": [
+    {
+      "path": "feishu/__init__.py",
+      "lines": 0,
+      "key_symbols": []
+    },
+    {
+      "path": "feishu/channel-instructions.md",
+      "lines": 53,
+      "key_symbols": [
+        {
+          "name": "channel-instructions",
+          "type": "documentation",
+          "line": 1,
+          "description": "Operational instructions injected into MCP server as system prompt — covers mode routing (production/improve/explain), file message handling, available tools (reply, react, plugins), and data paths"
+        }
+      ]
+    },
+    {
+      "path": "feishu/channel.py",
+      "lines": 376,
+      "key_symbols": [
+        {
+          "name": "ChannelClient",
+          "type": "class",
+          "line": 57,
+          "description": "WebSocket client connecting to channel_server.py with auto-reconnect, message queue, and methods to send replies/reactions/UX events"
+        },
+        {
+          "name": "ChannelClient.__init__",
+          "type": "method",
+          "line": 60,
+          "description": "Initializes with server_url, chat_ids filter, instance_id, runtime_mode, and internal asyncio.Queue"
+        },
+        {
+          "name": "ChannelClient.connect",
+          "type": "method",
+          "line": 69,
+          "description": "Connects to channel-server WebSocket with infinite auto-reconnect loop (3s retry)"
+        },
+        {
+          "name": "ChannelClient._register",
+          "type": "method",
+          "line": 82,
+          "description": "Sends registration message with role/chat_ids/instance_id/runtime_mode to channel-server"
+        },
+        {
+          "name": "ChannelClient._message_loop",
+          "type": "method",
+          "line": 96,
+          "description": "Consumes WebSocket messages: queues type=message, responds to ping, logs errors"
+        },
+        {
+          "name": "ChannelClient.send_reply",
+          "type": "method",
+          "line": 106,
+          "description": "Sends a reply message (chat_id + text) to channel-server via WebSocket"
+        },
+        {
+          "name": "ChannelClient.send_react",
+          "type": "method",
+          "line": 112,
+          "description": "Sends an emoji reaction (message_id + emoji_type) to channel-server via WebSocket"
+        },
+        {
+          "name": "ChannelClient.send_ux_event",
+          "type": "method",
+          "line": 118,
+          "description": "Sends a UX event (chat_id + event + data) to channel-server via WebSocket"
+        },
+        {
+          "name": "inject_message",
+          "type": "function",
+          "line": 135,
+          "description": "Builds a JSONRPCNotification with channel metadata (chat_id, user, runtime_mode, etc.) and sends it into the MCP write_stream as a SessionMessage for Claude Code consumption"
+        },
+        {
+          "name": "_load_identity",
+          "type": "function",
+          "line": 183,
+          "description": "Reads .autoservice/identity.yaml and formats identity preamble (name, description, modes, rules) for MCP server instructions"
+        },
+        {
+          "name": "_build_instructions",
+          "type": "function",
+          "line": 203,
+          "description": "Combines identity preamble + channel-instructions.md into the full MCP server instructions text"
+        },
+        {
+          "name": "_refresh_instructions",
+          "type": "function",
+          "line": 213,
+          "description": "Hot-reloads instructions if channel-instructions.md or identity.yaml file modification time changed"
+        },
+        {
+          "name": "create_server",
+          "type": "function",
+          "line": 227,
+          "description": "Creates and returns an MCP Server('autoservice-channel') with built instructions text"
+        },
+        {
+          "name": "register_tools",
+          "type": "function",
+          "line": 237,
+          "description": "Registers core tools (reply, react) and dynamic plugin tools on the MCP server via list_tools/call_tool handlers"
+        },
+        {
+          "name": "_handle_reply",
+          "type": "function",
+          "line": 293,
+          "description": "Tool handler for 'reply': schedules send_reply coroutine on event loop via run_coroutine_threadsafe"
+        },
+        {
+          "name": "_handle_react",
+          "type": "function",
+          "line": 305,
+          "description": "Tool handler for 'react': schedules send_react coroutine on event loop via run_coroutine_threadsafe"
+        },
+        {
+          "name": "main",
+          "type": "function",
+          "line": 318,
+          "description": "Async entry point: discovers plugins, creates ChannelClient + MCP Server, runs server.run/client.connect/consume_messages in parallel via anyio task group over stdio"
+        },
+        {
+          "name": "entry_point",
+          "type": "function",
+          "line": 371,
+          "description": "Synchronous wrapper calling asyncio.run(main()), used as console_scripts entry point"
+        }
+      ]
+    },
+    {
+      "path": "feishu/channel_server.py",
+      "lines": 1143,
+      "key_symbols": [
+        {
+          "name": "Instance",
+          "type": "class",
+          "line": 37,
+          "description": "Dataclass representing a registered channel.py or web/app.py WebSocket client with ws, instance_id, role, chat_ids, runtime_mode, business_mode, connected_at"
+        },
+        {
+          "name": "ChannelServer",
+          "type": "class",
+          "line": 52,
+          "description": "Local WebSocket server (default port 9999) that routes messages between Feishu inbound, web clients, and registered Claude Code channel instances using exact/prefix/wildcard routing"
+        },
+        {
+          "name": "ChannelServer.__init__",
+          "type": "method",
+          "line": 55,
+          "description": "Initializes host, port, feishu_enabled flag, admin_chat_id, and three route tables: exact_routes, prefix_routes, wildcard_instances"
+        },
+        {
+          "name": "ChannelServer.start",
+          "type": "method",
+          "line": 84,
+          "description": "Starts WebSocket server via websockets.serve and optionally launches Feishu WS integration task"
+        },
+        {
+          "name": "ChannelServer.stop",
+          "type": "method",
+          "line": 103,
+          "description": "Gracefully shuts down: cancels background tasks, closes WebSocket server, notifies admin"
+        },
+        {
+          "name": "ChannelServer._load_credentials",
+          "type": "method",
+          "line": 147,
+          "description": "Static method loading Feishu app_id/app_secret from env vars or .feishu-credentials.json (searches project root and git toplevel)"
+        },
+        {
+          "name": "ChannelServer._resolve_user",
+          "type": "method",
+          "line": 176,
+          "description": "Resolves Feishu open_id to display name via cache, Feishu contact API, and CRM upsert_contact"
+        },
+        {
+          "name": "ChannelServer._send_reaction",
+          "type": "method",
+          "line": 218,
+          "description": "Adds emoji reaction to a Feishu message via API; optionally tracks reaction_id for later removal"
+        },
+        {
+          "name": "ChannelServer._remove_reaction",
+          "type": "method",
+          "line": 248,
+          "description": "Removes a previously tracked ACK reaction from a Feishu message via API"
+        },
+        {
+          "name": "ChannelServer._download_feishu_file",
+          "type": "method",
+          "line": 274,
+          "description": "Downloads file/image/audio/media attachments from Feishu API, saves to .autoservice/uploads/{chat_id}/, returns local path"
+        },
+        {
+          "name": "ChannelServer._handle_admin_message",
+          "type": "method",
+          "line": 341,
+          "description": "Processes admin slash-commands: /help, /status, /inject #N <text>, /explain <query>"
+        },
+        {
+          "name": "ChannelServer._reply_feishu",
+          "type": "method",
+          "line": 408,
+          "description": "Sends text message to a Feishu chat via CreateMessageRequest in a daemon thread (best-effort, fire-and-forget)"
+        },
+        {
+          "name": "ChannelServer._run_feishu_safe",
+          "type": "method",
+          "line": 436,
+          "description": "Error-logging wrapper around _run_feishu"
+        },
+        {
+          "name": "ChannelServer._run_feishu",
+          "type": "method",
+          "line": 443,
+          "description": "Main Feishu integration: initializes lark Client, sets up P2ImMessageReceiveV1 handler, starts WS in daemon thread, sends startup notifications to scoped users, runs consumer loop routing messages"
+        },
+        {
+          "name": "ChannelServer._handle_client",
+          "type": "method",
+          "line": 754,
+          "description": "Handles a single WebSocket client connection: dispatches register/reply/react/message/ux_event/pong message types"
+        },
+        {
+          "name": "ChannelServer._handle_register",
+          "type": "method",
+          "line": 789,
+          "description": "Registers an instance into exact_routes/prefix_routes/wildcard_instances, checks for conflicts on exact chat_ids"
+        },
+        {
+          "name": "ChannelServer._unregister",
+          "type": "method",
+          "line": 835,
+          "description": "Removes a disconnected instance from all route tables"
+        },
+        {
+          "name": "ChannelServer.route_message",
+          "type": "method",
+          "line": 860,
+          "description": "Three-tier routing: exact match -> prefix match -> wildcard broadcast; adds routed_to hint for observation mode"
+        },
+        {
+          "name": "ChannelServer._handle_reply",
+          "type": "method",
+          "line": 905,
+          "description": "Reverse-routes replies: Feishu chats (oc_*) go to Feishu API + remove ACK reaction; web chats (web_*) relayed to web instance"
+        },
+        {
+          "name": "ChannelServer._handle_react",
+          "type": "method",
+          "line": 931,
+          "description": "Forwards reaction requests to Feishu API in a daemon thread"
+        },
+        {
+          "name": "ChannelServer._handle_inbound_message",
+          "type": "method",
+          "line": 941,
+          "description": "Handles inbound messages from web clients, tracks in _known_chats, routes via route_message"
+        },
+        {
+          "name": "ChannelServer._handle_ux_event",
+          "type": "method",
+          "line": 955,
+          "description": "Forwards UX events to the appropriate web connection via exact/prefix route lookup"
+        },
+        {
+          "name": "ChannelServer._chat_index",
+          "type": "method",
+          "line": 968,
+          "description": "Returns numbered list of (index, chat_id, info) for active chats used by /status and /inject"
+        },
+        {
+          "name": "ChannelServer._resolve_chat_target",
+          "type": "method",
+          "line": 972,
+          "description": "Resolves /inject target — accepts #N index or full chat_id string"
+        },
+        {
+          "name": "ChannelServer.status_text",
+          "type": "method",
+          "line": 986,
+          "description": "Generates human-readable status report: message stats, service desks, channel status, active conversations"
+        },
+        {
+          "name": "ChannelServer.help_text",
+          "type": "method",
+          "line": 1036,
+          "description": "Generates help text listing all admin slash-commands (/status, /help, /inject, /explain)"
+        },
+        {
+          "name": "ChannelServer._find_prefix_instance",
+          "type": "method",
+          "line": 1059,
+          "description": "Finds the Instance matching a chat_id by prefix pattern"
+        },
+        {
+          "name": "ChannelServer._send",
+          "type": "method",
+          "line": 1065,
+          "description": "Static helper to send JSON dict over WebSocket with error handling"
+        },
+        {
+          "name": "ChannelServer._notify_admin",
+          "type": "method",
+          "line": 1077,
+          "description": "Fire-and-forget admin notification; logs if no admin_chat_id configured"
+        },
+        {
+          "name": "_async_main",
+          "type": "function",
+          "line": 1090,
+          "description": "Async entry point: configures logging, reads env vars (CHANNEL_SERVER_PORT, ADMIN_CHAT_ID, FEISHU_ENABLED), creates ChannelServer, registers signal handlers, starts server, prints banner, waits for stop"
+        },
+        {
+          "name": "main",
+          "type": "function",
+          "line": 1138,
+          "description": "Synchronous entry point calling asyncio.run(_async_main())"
+        }
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "ChannelClient(server_url, chat_ids, instance_id, runtime_mode)",
+      "file": "feishu/channel.py",
+      "line": 60
+    },
+    {
+      "name": "ChannelClient.connect()",
+      "file": "feishu/channel.py",
+      "line": 69
+    },
+    {
+      "name": "ChannelClient.send_reply(chat_id, text)",
+      "file": "feishu/channel.py",
+      "line": 106
+    },
+    {
+      "name": "ChannelClient.send_react(message_id, emoji_type)",
+      "file": "feishu/channel.py",
+      "line": 112
+    },
+    {
+      "name": "ChannelClient.send_ux_event(chat_id, event, data)",
+      "file": "feishu/channel.py",
+      "line": 118
+    },
+    {
+      "name": "inject_message(write_stream, msg)",
+      "file": "feishu/channel.py",
+      "line": 135
+    },
+    {
+      "name": "create_server() -> Server",
+      "file": "feishu/channel.py",
+      "line": 227
+    },
+    {
+      "name": "register_tools(server, plugin_tools)",
+      "file": "feishu/channel.py",
+      "line": 237
+    },
+    {
+      "name": "entry_point()",
+      "file": "feishu/channel.py",
+      "line": 371
+    },
+    {
+      "name": "ChannelServer(host, port, feishu_enabled, admin_chat_id)",
+      "file": "feishu/channel_server.py",
+      "line": 55
+    },
+    {
+      "name": "ChannelServer.start()",
+      "file": "feishu/channel_server.py",
+      "line": 84
+    },
+    {
+      "name": "ChannelServer.stop()",
+      "file": "feishu/channel_server.py",
+      "line": 103
+    },
+    {
+      "name": "ChannelServer.route_message(chat_id, message)",
+      "file": "feishu/channel_server.py",
+      "line": 860
+    },
+    {
+      "name": "ChannelServer.status_text() -> str",
+      "file": "feishu/channel_server.py",
+      "line": 986
+    },
+    {
+      "name": "ChannelServer.help_text() -> str",
+      "file": "feishu/channel_server.py",
+      "line": 1036
+    },
+    {
+      "name": "main()",
+      "file": "feishu/channel_server.py",
+      "line": 1138
+    }
+  ],
+  "dependencies": [
+    "asyncio",
+    "json",
+    "logging",
+    "os",
+    "sys",
+    "pathlib.Path",
+    "datetime",
+    "threading",
+    "time",
+    "signal",
+    "dataclasses",
+    "anyio",
+    "websockets",
+    "mcp.server.stdio",
+    "mcp.server.lowlevel.Server",
+    "mcp.server.lowlevel.NotificationOptions",
+    "mcp.server.models.InitializationOptions",
+    "mcp.shared.message.SessionMessage",
+    "mcp.types.JSONRPCMessage",
+    "mcp.types.JSONRPCNotification",
+    "mcp.types.Tool",
+    "mcp.types.TextContent",
+    "yaml (lazy, in _load_identity)",
+    "lark_oapi (lazy, in channel_server.py for Feishu API)",
+    "lark_oapi.api.im.v1 (lazy, CreateMessageRequest, CreateMessageRequestBody, P2ImMessageReceiveV1)",
+    "requests (lazy, in send_startup for HTTP token fetch)",
+    "autoservice.plugin_loader.discover (lazy, in main())",
+    "autoservice.crm.upsert_contact (lazy, in _resolve_user)",
+    "autoservice.crm.increment_message_count (lazy, in on_message)",
+    "autoservice.crm.log_message (lazy, in on_message)"
+  ],
+  "test_results": {
+    "command": "No dedicated test files found for feishu/ module",
+    "note": "The feishu module has no test suite. Testing would require mocking the WebSocket layer (websockets), MCP server (mcp.server), and Feishu API (lark_oapi). The module is integration-heavy with no unit tests."
+  },
+  "user_flows": [
+    {
+      "name": "Feishu message ingestion and routing",
+      "steps": [
+        "1. channel_server.py starts WebSocket server on port 9999 and connects to Feishu via lark_oapi WS client in daemon thread",
+        "2. Feishu WS receives P2ImMessageReceiveV1 event in on_message callback (line 475)",
+        "3. on_message filters bot's own messages, deduplicates via _seen set, sends ACK reaction",
+        "4. Parses text/post/file/image/audio message types, resolves user name via Feishu API + CRM",
+        "5. Handles mode-switch commands (/improve, /production) or enqueues message dict to asyncio.Queue",
+        "6. Consumer loop (line 722) reads from queue, calls route_message() for normal messages or _handle_admin_message() for admin slash-commands",
+        "7. route_message (line 860) dispatches to exact_routes -> prefix_routes -> wildcard_instances"
+      ],
+      "entry_point": "channel_server.py:443"
+    },
+    {
+      "name": "MCP channel bridge (Claude Code integration)",
+      "steps": [
+        "1. channel.py main() discovers plugins via autoservice.plugin_loader.discover (line 322-325)",
+        "2. Creates ChannelClient connecting to channel_server at ws://localhost:9999 (line 333)",
+        "3. Creates MCP Server with instructions from identity.yaml + channel-instructions.md (line 339)",
+        "4. Registers core tools (reply, react) and plugin tools on MCP server (line 340)",
+        "5. Opens MCP stdio transport, runs 3 parallel tasks via anyio task group (line 363): server.run, client.connect, consume_messages",
+        "6. consume_messages reads from ChannelClient queue, hot-reloads instructions, calls inject_message to push notifications into MCP write_stream",
+        "7. inject_message (line 135) builds JSONRPCNotification with method 'notifications/claude/channel' and sends as SessionMessage",
+        "8. Claude Code processes the notification, may call reply/react tools which schedule coroutines on the event loop back to ChannelClient"
+      ],
+      "entry_point": "channel.py:318"
+    },
+    {
+      "name": "Reply flow (Claude Code -> Feishu user)",
+      "steps": [
+        "1. Claude Code calls 'reply' MCP tool with chat_id + text",
+        "2. _handle_reply (channel.py:293) schedules ChannelClient.send_reply coroutine via run_coroutine_threadsafe",
+        "3. ChannelClient.send_reply (channel.py:106) sends JSON {type: reply, chat_id, text} to channel_server via WebSocket",
+        "4. ChannelServer._handle_reply (channel_server.py:905) checks chat_id prefix: oc_ -> Feishu, web_ -> web relay",
+        "5. For Feishu: calls _reply_feishu (line 408) which creates CreateMessageRequest in daemon thread",
+        "6. Removes ACK reaction from the last inbound message in that chat"
+      ],
+      "entry_point": "channel.py:293"
+    },
+    {
+      "name": "Admin command flow",
+      "steps": [
+        "1. Admin sends /status, /help, /inject, or /explain in the admin Feishu group chat",
+        "2. Consumer loop (line 737) detects admin_chat_id match + slash prefix, calls _handle_admin_message (line 341)",
+        "3. /status -> generates status_text() with instance list, channel status, active conversations",
+        "4. /inject #N <text> -> resolves chat target via _resolve_chat_target, creates injected message, calls route_message",
+        "5. /explain <query> -> creates explain-mode message with runtime_mode=explain and admin_chat_id, routes to instances"
+      ],
+      "entry_point": "channel_server.py:341"
+    },
+    {
+      "name": "Web client message flow",
+      "steps": [
+        "1. Web client (web/app.py) connects to channel_server via WebSocket, sends register with chat_ids=[web_*] prefix pattern",
+        "2. _handle_register (line 789) stores in prefix_routes as 'web_' -> Instance",
+        "3. Web client sends type=message with chat_id=web_xxx, handled by _handle_inbound_message (line 941)",
+        "4. Message is tracked in _known_chats and routed via route_message to exact/prefix/wildcard instances",
+        "5. Replies from Claude Code with chat_id=web_xxx are reverse-routed to the web Instance in _handle_reply (line 917)"
+      ],
+      "entry_point": "channel_server.py:941"
+    },
+    {
+      "name": "Instance registration and routing",
+      "steps": [
+        "1. channel.py connects to channel_server and sends register with role/chat_ids/instance_id (ChannelClient._register, line 82)",
+        "2. _handle_register (line 789) validates no exact-route conflicts, creates Instance dataclass",
+        "3. Routes stored: '*' -> wildcard_instances, 'prefix*' -> prefix_routes, exact chat_id -> exact_routes",
+        "4. On disconnect, _unregister (line 835) cleans up all route table entries",
+        "5. route_message (line 860) implements 3-tier priority: exact > prefix > wildcard, with routed_to hints for observation mode"
+      ],
+      "entry_point": "channel_server.py:789"
+    }
+  ]
+}

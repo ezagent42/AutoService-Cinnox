@@ -23,7 +23,7 @@ async def test_channel_connects_and_registers():
         await done.wait()
 
     async with websockets.serve(mock_handler, "localhost", SERVER_PORT):
-        from feishu.channel import ChannelClient
+        from channels.feishu.channel import ChannelClient
         client = ChannelClient(
             server_url=f"ws://localhost:{SERVER_PORT}",
             chat_ids=["oc_test"],

@@ -1,0 +1,432 @@
+{
+  "module_name": "autoservice",
+  "module_path": "autoservice/",
+  "description": "Core shared library for the AutoService AI customer-service and sales bot framework, providing config, database, session, permission, plugin loading, CRM, API client, and utility functions.",
+  "files_analyzed": [
+    {
+      "path": "autoservice/__init__.py",
+      "lines": 67,
+      "key_symbols": [
+        {"name": "__all__", "type": "variable", "line": 21, "description": "Public API export list consolidating symbols from all submodules"}
+      ]
+    },
+    {
+      "path": "autoservice/api_client.py",
+      "lines": 179,
+      "key_symbols": [
+        {"name": "APIClient", "type": "class", "line": 16, "description": "HTTP client for AutoService API calls; reads mock server info or uses a provided base URL; convenience methods for customer, subscription, billing, order, pricing, feature, service, permission, refund, and subscription-change queries"},
+        {"name": "APIClient.__init__", "type": "method", "line": 19, "description": "Initialize with domain, optional base_url override, and timeout"},
+        {"name": "APIClient.base_url", "type": "property", "line": 32, "description": "Resolve base URL from .mock_server_info file or default to localhost:8100"},
+        {"name": "APIClient.get", "type": "method", "line": 44, "description": "Execute GET request with optional query params"},
+        {"name": "APIClient.post", "type": "method", "line": 56, "description": "Execute POST request with JSON body"},
+        {"name": "APIClient.put", "type": "method", "line": 63, "description": "Execute PUT request with JSON body"},
+        {"name": "APIClient.query_customer", "type": "method", "line": 72, "description": "GET /api/v1/customers/{identifier}"},
+        {"name": "APIClient.query_subscriptions", "type": "method", "line": 75, "description": "GET customer subscriptions, optionally filtered by service_name"},
+        {"name": "APIClient.query_billing", "type": "method", "line": 80, "description": "GET customer billing with optional date range"},
+        {"name": "APIClient.query_purchases", "type": "method", "line": 85, "description": "GET customer purchase history"},
+        {"name": "APIClient.query_order", "type": "method", "line": 88, "description": "GET order by order_id"},
+        {"name": "APIClient.query_pricing", "type": "method", "line": 91, "description": "GET product pricing with optional tier and user_count"},
+        {"name": "APIClient.query_feature", "type": "method", "line": 96, "description": "GET product feature availability"},
+        {"name": "APIClient.query_services", "type": "method", "line": 99, "description": "GET available services by category"},
+        {"name": "APIClient.check_permission", "type": "method", "line": 102, "description": "POST permission check for an action on a product"},
+        {"name": "APIClient.request_refund", "type": "method", "line": 109, "description": "POST refund request"},
+        {"name": "APIClient.change_subscription", "type": "method", "line": 117, "description": "PUT subscription change (cancel, upgrade, etc.)"},
+        {"name": "APIClient.health_check", "type": "method", "line": 123, "description": "GET /health endpoint"},
+        {"name": "format_api_response", "type": "function", "line": 127, "description": "Format API response dict for conversation display, supports zh/en languages"},
+        {"name": "format_permission_response", "type": "function", "line": 165, "description": "Format permission check response for conversation display, supports zh/en"}
+      ]
+    },
+    {
+      "path": "autoservice/api_interfaces.py",
+      "lines": 233,
+      "key_symbols": [
+        {"name": "APIResponse", "type": "dataclass", "line": 14, "description": "Standardized API response container with success, data, endpoint, is_mock fields and display formatting"},
+        {"name": "APIResponse.to_display_block", "type": "method", "line": 23, "description": "Format response as Chinese-language display block for conversation"},
+        {"name": "APIInterface", "type": "dataclass", "line": 44, "description": "Definition of a system API interface with name, description, endpoint, method, params, response_fields"},
+        {"name": "APIInterface.from_dict", "type": "classmethod", "line": 54, "description": "Create APIInterface from a dictionary"},
+        {"name": "APIQueryEngine", "type": "class", "line": 68, "description": "Engine for executing API queries; builds prompts for mock data generation or executes real HTTP requests"},
+        {"name": "APIQueryEngine.__init__", "type": "method", "line": 76, "description": "Initialize with mode (mock/real/hybrid) and optional base_url"},
+        {"name": "APIQueryEngine.build_query_prompt", "type": "method", "line": 87, "description": "Build a Chinese-language prompt for Claude to generate mock API response data"},
+        {"name": "APIQueryEngine.format_mock_response", "type": "method", "line": 137, "description": "Wrap mock data into a standardized APIResponse object"},
+        {"name": "COMMON_INTERFACES", "type": "variable", "line": 167, "description": "Dict of 5 common API interface templates: user_info, subscription_check, billing_history, purchase_history, service_list"},
+        {"name": "get_interface", "type": "function", "line": 216, "description": "Get API interface by name; checks product-specific interfaces first, then falls back to COMMON_INTERFACES"}
+      ]
+    },
+    {
+      "path": "autoservice/claude.py",
+      "lines": 48,
+      "key_symbols": [
+        {"name": "query", "type": "async function", "line": 13, "description": "Execute a Claude Agent SDK query with proxy-aware env and optional .autoservice/.claude plugin path; yields raw message objects"}
+      ]
+    },
+    {
+      "path": "autoservice/config.py",
+      "lines": 176,
+      "key_symbols": [
+        {"name": "SUPPORTED_LANGUAGES", "type": "variable", "line": 18, "description": "Tuple of supported language codes: ('zh', 'en')"},
+        {"name": "DEFAULT_LANGUAGE", "type": "variable", "line": 19, "description": "Default language code: 'zh'"},
+        {"name": "LANG_CONFIGS", "type": "variable", "line": 23, "description": "Nested dict of language-specific domain configurations for 'marketing' and 'customer-service' in 'zh' and 'en'"},
+        {"name": "DEFAULT_CONFIGS", "type": "variable", "line": 115, "description": "Backward-compatible alias pointing to LANG_CONFIGS['zh']"},
+        {"name": "load_config", "type": "function", "line": 118, "description": "Load configuration from a YAML file; requires PyYAML"},
+        {"name": "get_domain_config", "type": "function", "line": 127, "description": "Get configuration for a domain with language support; tries config file first, then built-in defaults, then generates a default for unknown domains"}
+      ]
+    },
+    {
+      "path": "autoservice/core.py",
+      "lines": 34,
+      "key_symbols": [
+        {"name": "generate_id", "type": "function", "line": 11, "description": "Generate 8-char MD5-based unique ID from name and timestamp"},
+        {"name": "sanitize_name", "type": "function", "line": 17, "description": "Convert name to filesystem-safe format, keeping alphanumeric, Chinese chars, and hyphens; max 30 chars"},
+        {"name": "ensure_dir", "type": "function", "line": 30, "description": "Ensure directory exists (mkdir -p) and return it"}
+      ]
+    },
+    {
+      "path": "autoservice/crm.py",
+      "lines": 274,
+      "key_symbols": [
+        {"name": "_DB_PATH", "type": "variable", "line": 11, "description": "Default CRM SQLite database path: .autoservice/database/crm.db"},
+        {"name": "SCHEMA", "type": "variable", "line": 14, "description": "SQL schema defining contacts, conversations, and customer_rules tables with indexes"},
+        {"name": "_get_db", "type": "function", "line": 57, "description": "Lazy-initialize and return the singleton SQLite connection"},
+        {"name": "upsert_contact", "type": "function", "line": 67, "description": "Create or update a Feishu contact by open_id; only overwrites non-empty changed fields"},
+        {"name": "increment_message_count", "type": "function", "line": 122, "description": "Bump message_count and last_seen for a contact"},
+        {"name": "log_message", "type": "function", "line": 133, "description": "Log a conversation message (direction: 'in' or 'out') to the conversations table"},
+        {"name": "get_contact", "type": "function", "line": 145, "description": "Get a contact by open_id"},
+        {"name": "get_contact_history", "type": "function", "line": 152, "description": "Get recent conversation history for a contact, ordered by timestamp DESC"},
+        {"name": "list_contacts", "type": "function", "line": 162, "description": "List all contacts, most recently active first"},
+        {"name": "search_contacts", "type": "function", "line": 171, "description": "Search contacts by name, company, phone, or email using LIKE"},
+        {"name": "add_rule", "type": "function", "line": 189, "description": "Insert a new customer rule into customer_rules table"},
+        {"name": "list_rules", "type": "function", "line": 211, "description": "List rules with optional scope/context filters, newest first"},
+        {"name": "get_rules_for_customer", "type": "function", "line": 229, "description": "Get all rules applicable to a customer (global, customer-specific, or region-based)"},
+        {"name": "delete_rule", "type": "function", "line": 249, "description": "Delete a customer rule by id"},
+        {"name": "update_rule", "type": "function", "line": 257, "description": "Update allowed fields on a customer rule by id"}
+      ]
+    },
+    {
+      "path": "autoservice/customer_manager.py",
+      "lines": 294,
+      "key_symbols": [
+        {"name": "CustomerManager", "type": "class", "line": 19, "description": "Manages customer records on disk (JSON files) with cold-start support for unknown callers"},
+        {"name": "CustomerManager.__init__", "type": "method", "line": 24, "description": "Initialize with domain name and optional config; sets up base_path to customers directory"},
+        {"name": "CustomerManager.lookup_by_phone", "type": "method", "line": 37, "description": "Search customers by phone number, returns (data, dir_path) tuple"},
+        {"name": "CustomerManager.lookup_by_id", "type": "method", "line": 65, "description": "Search customers by ID (directory prefix or _id field)"},
+        {"name": "CustomerManager.lookup_by_name", "type": "method", "line": 99, "description": "Search customers by name (partial/bidirectional contains match)"},
+        {"name": "CustomerManager.create_cold_start_customer", "type": "method", "line": 128, "description": "Create a minimal customer record for unknown callers, using phone as primary identifier"},
+        {"name": "CustomerManager.update_customer", "type": "method", "line": 172, "description": "Update customer info after a call; appends session to interaction_history; clears cold_start flag on name change"},
+        {"name": "CustomerManager.get_or_create", "type": "method", "line": 225, "description": "Lookup by ID/phone/name or create cold-start; returns (data, path, is_new) tuple"},
+        {"name": "CustomerManager._write_readme", "type": "method", "line": 265, "description": "Write human-readable README.md for a customer directory"}
+      ]
+    },
+    {
+      "path": "autoservice/database.py",
+      "lines": 296,
+      "key_symbols": [
+        {"name": "TYPE_MAP", "type": "variable", "line": 14, "description": "Maps singular record types to plural directory names: product->products, customer->customers, operator->operators"},
+        {"name": "get_output_dir", "type": "function", "line": 21, "description": "Get output directory Path for a given domain and item_type"},
+        {"name": "save_record", "type": "function", "line": 30, "description": "Save a record (product/customer/operator) as info.json + README.md in a named subdirectory"},
+        {"name": "list_records", "type": "function", "line": 86, "description": "List records of specified type(s) from the filesystem database; supports verbose mode for full data"},
+        {"name": "get_record", "type": "function", "line": 132, "description": "Get a single record by name or ID (case-insensitive search)"},
+        {"name": "update_record", "type": "function", "line": 171, "description": "Update an existing record's fields (preserves metadata); regenerates README.md"},
+        {"name": "delete_record", "type": "function", "line": 226, "description": "Delete a record directory using shutil.rmtree"},
+        {"name": "print_results", "type": "function", "line": 253, "description": "Print list_records results in formatted output with domain-specific labels"}
+      ]
+    },
+    {
+      "path": "autoservice/importer.py",
+      "lines": 207,
+      "key_symbols": [
+        {"name": "extract_from_docx", "type": "function", "line": 16, "description": "Extract structured data (list of dicts) from DOCX file; auto-installs python-docx if missing"},
+        {"name": "extract_from_xlsx", "type": "function", "line": 51, "description": "Extract structured data from XLSX file using first row as headers; auto-installs openpyxl if missing"},
+        {"name": "extract_from_pdf", "type": "function", "line": 86, "description": "Extract structured data from PDF file using pdfplumber; auto-installs if missing"},
+        {"name": "save_item", "type": "function", "line": 122, "description": "Save an extracted item to its own folder with info.json and README.md"},
+        {"name": "import_file", "type": "function", "line": 149, "description": "Import data from DOCX/PDF/XLSX file and save items to output directory"},
+        {"name": "import_to_domain", "type": "function", "line": 186, "description": "Import data from a file into a specific domain's database directory"}
+      ]
+    },
+    {
+      "path": "autoservice/logger.py",
+      "lines": 70,
+      "key_symbols": [
+        {"name": "ConversationLogger", "type": "class", "line": 13, "description": "Logs conversation history to JSON files in .autoservice/database/history/"},
+        {"name": "ConversationLogger.__init__", "type": "method", "line": 16, "description": "Initialize with optional base_path; creates history dir and session file named with timestamp"},
+        {"name": "ConversationLogger._serialize", "type": "method", "line": 27, "description": "Recursively serialize objects to JSON-safe format, handling dataclasses and arbitrary objects"},
+        {"name": "ConversationLogger.log_user_input", "type": "method", "line": 44, "description": "Record a user input message with timestamp"},
+        {"name": "ConversationLogger.log_message", "type": "method", "line": 53, "description": "Record an assistant/agent message with serialization"},
+        {"name": "ConversationLogger._save", "type": "method", "line": 62, "description": "Persist conversations list to the session JSON file"}
+      ]
+    },
+    {
+      "path": "autoservice/mock_db.py",
+      "lines": 508,
+      "key_symbols": [
+        {"name": "SCHEMA_SQL", "type": "variable", "line": 15, "description": "Full SQLite schema with 9 tables: customers, products, subscriptions, billing_transactions, orders, permission_rules, product_pricing, product_features, services, api_audit_log"},
+        {"name": "MockDB", "type": "class", "line": 146, "description": "SQLite mock database manager for local API serving with full CRUD for all entity types"},
+        {"name": "MockDB.__init__", "type": "method", "line": 149, "description": "Initialize with db_path; creates parent dirs and initializes schema"},
+        {"name": "MockDB._init_schema", "type": "method", "line": 154, "description": "Execute SCHEMA_SQL to create all tables"},
+        {"name": "MockDB._connect", "type": "method", "line": 158, "description": "Create SQLite connection with Row factory and foreign keys enabled"},
+        {"name": "MockDB.upsert_customer", "type": "method", "line": 166, "description": "Insert or replace a customer record"},
+        {"name": "MockDB.get_customer", "type": "method", "line": 188, "description": "Get customer by ID or phone number"},
+        {"name": "MockDB.upsert_product", "type": "method", "line": 216, "description": "Insert or replace a product record with JSON data blob"},
+        {"name": "MockDB.get_product", "type": "method", "line": 233, "description": "Get product by ID"},
+        {"name": "MockDB.get_product_full_data", "type": "method", "line": 240, "description": "Get full product data from data_json column"},
+        {"name": "MockDB.add_subscription", "type": "method", "line": 250, "description": "Insert or replace a subscription"},
+        {"name": "MockDB.get_subscriptions", "type": "method", "line": 268, "description": "Get subscriptions for a customer, optionally filtered by service_name"},
+        {"name": "MockDB.add_billing_transaction", "type": "method", "line": 284, "description": "Insert or replace a billing transaction"},
+        {"name": "MockDB.get_billing", "type": "method", "line": 301, "description": "Get billing transactions with optional date range and computed totals"},
+        {"name": "MockDB.add_order", "type": "method", "line": 324, "description": "Insert or replace an order"},
+        {"name": "MockDB.get_purchases", "type": "method", "line": 343, "description": "Get purchase history with total_spent and last_purchase_date"},
+        {"name": "MockDB.get_order", "type": "method", "line": 358, "description": "Get order by ID with computed items and delivery_info sub-objects"},
+        {"name": "MockDB.set_product_pricing", "type": "method", "line": 377, "description": "Insert or replace product pricing with special offers and trial options as JSON"},
+        {"name": "MockDB.get_product_pricing", "type": "method", "line": 391, "description": "Get product pricing with deserialized JSON fields"},
+        {"name": "MockDB.add_product_feature", "type": "method", "line": 406, "description": "Insert a product feature record"},
+        {"name": "MockDB.get_product_feature", "type": "method", "line": 420, "description": "Get a product feature by product_id and feature_name (LIKE match)"},
+        {"name": "MockDB.add_service", "type": "method", "line": 432, "description": "Insert or replace a service listing"},
+        {"name": "MockDB.get_services", "type": "method", "line": 447, "description": "Get services optionally filtered by category"},
+        {"name": "MockDB.set_permission_rules", "type": "method", "line": 461, "description": "Set permission rules for a product+domain, replacing existing ones"},
+        {"name": "MockDB.get_permission_rules", "type": "method", "line": 476, "description": "Get permission rules as dict of level->[rules]"},
+        {"name": "MockDB.log_api_call", "type": "method", "line": 497, "description": "Log an API call to the audit log table"}
+      ]
+    },
+    {
+      "path": "autoservice/permission.py",
+      "lines": 301,
+      "key_symbols": [
+        {"name": "PermissionLevel", "type": "enum", "line": 15, "description": "Enum with 4 levels: APPROVE_IMMEDIATELY, REQUIRES_SUPERVISOR, REQUIRES_PROCESS, FORBIDDEN"},
+        {"name": "PermissionCheck", "type": "dataclass", "line": 24, "description": "Result of a permission check with action, level, allowed, reason, optional workflow and conditions; includes to_display_block()"},
+        {"name": "PermissionCheck.to_display_block", "type": "method", "line": 33, "description": "Format permission check result as Chinese-language display block"},
+        {"name": "OperatorPermissions", "type": "dataclass", "line": 60, "description": "Permission configuration with four rule lists; includes from_dict() classmethod and check_permission() method"},
+        {"name": "OperatorPermissions.from_dict", "type": "classmethod", "line": 67, "description": "Create OperatorPermissions from a dictionary"},
+        {"name": "OperatorPermissions.check_permission", "type": "method", "line": 77, "description": "Check an action against the four permission levels in priority order (forbidden -> requires_process -> requires_supervisor -> can_approve)"},
+        {"name": "OperatorPermissions._matches_rule", "type": "method", "line": 138, "description": "Match action against rule using contains-check or threshold comparison"},
+        {"name": "OperatorPermissions._matches_threshold_rule", "type": "method", "line": 159, "description": "Match threshold rules like '退款<100元' by extracting operator and numeric value"},
+        {"name": "DEFAULT_CUSTOMER_SERVICE_PERMISSIONS", "type": "variable", "line": 205, "description": "Pre-configured permission template for customer service domain"},
+        {"name": "DEFAULT_MARKETING_PERMISSIONS", "type": "variable", "line": 238, "description": "Pre-configured permission template for marketing/sales domain"},
+        {"name": "get_default_permissions", "type": "function", "line": 269, "description": "Get default OperatorPermissions for a domain ('customer-service' or 'marketing')"},
+        {"name": "check_permission", "type": "function", "line": 279, "description": "Top-level convenience function to check permission using product-specific or default domain permissions"}
+      ]
+    },
+    {
+      "path": "autoservice/plugin_loader.py",
+      "lines": 269,
+      "key_symbols": [
+        {"name": "PluginTool", "type": "dataclass", "line": 27, "description": "An MCP tool declared by a plugin: name, description, handler callable, input_schema, plugin_name"},
+        {"name": "PluginRoute", "type": "dataclass", "line": 36, "description": "An HTTP route declared by a plugin: path, method, handler callable, plugin_name"},
+        {"name": "Plugin", "type": "dataclass", "line": 46, "description": "Fully loaded plugin with name, version, description, mode, installer, tools, routes, references, optional MockDB, and plugin_dir"},
+        {"name": "_import_module_from_path", "type": "function", "line": 64, "description": "Import a Python module from an absolute file path using importlib.util"},
+        {"name": "_resolve_handler", "type": "function", "line": 75, "description": "Resolve a 'module.function' handler reference string to a callable, loading from the plugin directory"},
+        {"name": "_seed_db", "type": "function", "line": 117, "description": "Seed a MockDB with initial data from a parsed JSON structure (customers, products, subscriptions)"},
+        {"name": "load_plugin", "type": "function", "line": 142, "description": "Load a single plugin from its directory: parse plugin.yaml, resolve handlers, init mock DB with seed data"},
+        {"name": "discover", "type": "function", "line": 229, "description": "Discover and load all plugins from a directory; skips hidden dirs; logs successes and failures"}
+      ]
+    },
+    {
+      "path": "autoservice/rules.py",
+      "lines": 79,
+      "key_symbols": [
+        {"name": "RULES_DIR", "type": "variable", "line": 7, "description": "Path to universal behavior rules directory: .autoservice/rules/"},
+        {"name": "load_rules", "type": "function", "line": 10, "description": "Load all rules from all YAML files in .autoservice/rules/, annotating each with _source filename"},
+        {"name": "save_rules", "type": "function", "line": 27, "description": "Save a list of rule dicts to a named YAML file in the rules directory"},
+        {"name": "add_rule", "type": "function", "line": 35, "description": "Add a rule with auto-incrementing ID to a YAML file; supports context and created_by fields"},
+        {"name": "delete_rule", "type": "function", "line": 55, "description": "Delete a rule by ID from a specified YAML file"},
+        {"name": "format_rules_for_prompt", "type": "function", "line": 69, "description": "Format all universal rules as a text block suitable for channel system instructions"}
+      ]
+    },
+    {
+      "path": "autoservice/session.py",
+      "lines": 299,
+      "key_symbols": [
+        {"name": "DOMAIN_PREFIXES", "type": "variable", "line": 17, "description": "Map domain names to 2-char session ID prefixes: customer-service->cs, marketing->mk"},
+        {"name": "get_claude_session_id", "type": "function", "line": 23, "description": "Auto-detect current Claude Code session ID by walking the process tree and using lsof or scanning ~/.claude/tasks/"},
+        {"name": "_find_claude_pid", "type": "function", "line": 58, "description": "Walk up the process tree using ps to find the Claude Code parent process PID"},
+        {"name": "_detect_session_from_pid", "type": "function", "line": 84, "description": "Detect session UUID from Claude process via lsof or by scanning ~/.claude/tasks/ for the most recent dir"},
+        {"name": "init_session", "type": "function", "line": 122, "description": "Initialize a session: detect Claude session ID, generate session name, create session directory; returns (session_id, session_dir)"},
+        {"name": "generate_session_id", "type": "function", "line": 149, "description": "Generate session ID in format {prefix}_{YYYYMMDD}_{seq}_{claude_session_id} with auto-incrementing sequence"},
+        {"name": "save_session", "type": "function", "line": 201, "description": "Save a complete session with conversation and review to history as session.json + README.md"}
+      ]
+    }
+  ],
+  "interfaces": [
+    {"name": "generate_id(name: str) -> str", "file": "autoservice/core.py", "line": 11},
+    {"name": "sanitize_name(name: str) -> str", "file": "autoservice/core.py", "line": 17},
+    {"name": "ensure_dir(path: Path) -> Path", "file": "autoservice/core.py", "line": 30},
+    {"name": "load_config(config_path: Path) -> dict", "file": "autoservice/config.py", "line": 118},
+    {"name": "get_domain_config(domain: str, config_path: Optional[Path], language: Optional[str]) -> dict", "file": "autoservice/config.py", "line": 127},
+    {"name": "save_record(domain: str, record_type: str, data: dict, config: Optional[dict]) -> Path", "file": "autoservice/database.py", "line": 30},
+    {"name": "list_records(domain: str, item_type: str, verbose: bool, config: Optional[dict]) -> dict", "file": "autoservice/database.py", "line": 86},
+    {"name": "get_record(domain: str, record_type: str, name_or_id: str, config: Optional[dict]) -> tuple", "file": "autoservice/database.py", "line": 132},
+    {"name": "update_record(domain: str, record_type: str, name_or_id: str, updates: dict, config: Optional[dict]) -> Optional[Path]", "file": "autoservice/database.py", "line": 171},
+    {"name": "delete_record(domain: str, record_type: str, name_or_id: str, config: Optional[dict]) -> bool", "file": "autoservice/database.py", "line": 226},
+    {"name": "print_results(results: dict, config: Optional[dict], verbose: bool)", "file": "autoservice/database.py", "line": 253},
+    {"name": "get_output_dir(domain: str, item_type: str, config: Optional[dict]) -> Path", "file": "autoservice/database.py", "line": 21},
+    {"name": "extract_from_docx(file_path: Path) -> list[dict]", "file": "autoservice/importer.py", "line": 16},
+    {"name": "extract_from_xlsx(file_path: Path) -> list[dict]", "file": "autoservice/importer.py", "line": 51},
+    {"name": "extract_from_pdf(file_path: Path) -> list[dict]", "file": "autoservice/importer.py", "line": 86},
+    {"name": "import_file(file_path: str, output_dir: str, item_type: str) -> list[Path]", "file": "autoservice/importer.py", "line": 149},
+    {"name": "import_to_domain(domain: str, file_path: str, item_type: str, config: Optional[dict]) -> list[Path]", "file": "autoservice/importer.py", "line": 186},
+    {"name": "save_session(domain, session_id, product, customer, operator, conversation, review, config) -> Path", "file": "autoservice/session.py", "line": 201},
+    {"name": "generate_session_id(domain: str, claude_session_id: Optional[str], config: Optional[dict]) -> str", "file": "autoservice/session.py", "line": 149},
+    {"name": "get_claude_session_id() -> str", "file": "autoservice/session.py", "line": 23},
+    {"name": "init_session(domain: str, config: Optional[dict]) -> tuple[str, Path]", "file": "autoservice/session.py", "line": 122},
+    {"name": "get_interface(name: str, product_interfaces: Optional[dict]) -> Optional[APIInterface]", "file": "autoservice/api_interfaces.py", "line": 216},
+    {"name": "check_permission(action: str, product_permissions: Optional[dict], domain: str) -> PermissionCheck", "file": "autoservice/permission.py", "line": 279},
+    {"name": "get_default_permissions(domain: str) -> OperatorPermissions", "file": "autoservice/permission.py", "line": 269},
+    {"name": "format_api_response(response: dict, endpoint: str, language: str) -> str", "file": "autoservice/api_client.py", "line": 127},
+    {"name": "format_permission_response(response: dict, language: str) -> str", "file": "autoservice/api_client.py", "line": 165},
+    {"name": "query(prompt: str, cwd: str) -> AsyncIterator[Any]", "file": "autoservice/claude.py", "line": 13},
+    {"name": "load_plugin(plugin_dir: Path) -> Plugin", "file": "autoservice/plugin_loader.py", "line": 142},
+    {"name": "discover(plugins_dir: str | Path) -> list[Plugin]", "file": "autoservice/plugin_loader.py", "line": 229},
+    {"name": "upsert_contact(open_id, name, phone, email, company, department, job_title) -> dict", "file": "autoservice/crm.py", "line": 67},
+    {"name": "increment_message_count(open_id: str) -> None", "file": "autoservice/crm.py", "line": 122},
+    {"name": "log_message(open_id, chat_id, direction, text, ts) -> None", "file": "autoservice/crm.py", "line": 133},
+    {"name": "get_contact(open_id: str) -> dict | None", "file": "autoservice/crm.py", "line": 145},
+    {"name": "get_contact_history(open_id: str, limit: int) -> list[dict]", "file": "autoservice/crm.py", "line": 152},
+    {"name": "list_contacts(limit: int) -> list[dict]", "file": "autoservice/crm.py", "line": 162},
+    {"name": "search_contacts(query: str) -> list[dict]", "file": "autoservice/crm.py", "line": 171},
+    {"name": "add_rule(scope, rule, scope_value, context, created_by) -> dict", "file": "autoservice/crm.py", "line": 189},
+    {"name": "list_rules(scope: str, context: str) -> list[dict]", "file": "autoservice/crm.py", "line": 211},
+    {"name": "get_rules_for_customer(open_id: str, region: str) -> list[dict]", "file": "autoservice/crm.py", "line": 229},
+    {"name": "delete_rule(rule_id: int) -> bool", "file": "autoservice/crm.py", "line": 249},
+    {"name": "update_rule(rule_id: int, **kwargs) -> dict | None", "file": "autoservice/crm.py", "line": 257},
+    {"name": "load_rules() -> list[dict]", "file": "autoservice/rules.py", "line": 10},
+    {"name": "save_rules(filename: str, rules: list[dict]) -> Path", "file": "autoservice/rules.py", "line": 27},
+    {"name": "add_rule(context, rule, created_by, filename) -> dict", "file": "autoservice/rules.py", "line": 35},
+    {"name": "delete_rule(rule_id: int, filename: str) -> bool", "file": "autoservice/rules.py", "line": 55},
+    {"name": "format_rules_for_prompt() -> str", "file": "autoservice/rules.py", "line": 69}
+  ],
+  "dependencies": [
+    "hashlib (stdlib)",
+    "re (stdlib)",
+    "json (stdlib)",
+    "os (stdlib)",
+    "sys (stdlib)",
+    "sqlite3 (stdlib)",
+    "shutil (stdlib)",
+    "subprocess (stdlib)",
+    "importlib.util (stdlib)",
+    "traceback (stdlib)",
+    "datetime (stdlib)",
+    "pathlib (stdlib)",
+    "typing (stdlib)",
+    "dataclasses (stdlib)",
+    "enum (stdlib)",
+    "urllib.parse (stdlib)",
+    "httpx (third-party)",
+    "yaml / PyYAML (third-party, optional in config.py, required in plugin_loader.py and rules.py)",
+    "claude_agent_sdk (third-party, used in claude.py)",
+    "python-docx (third-party, auto-installed by importer.py)",
+    "openpyxl (third-party, auto-installed by importer.py)",
+    "pdfplumber (third-party, auto-installed by importer.py)"
+  ],
+  "internal_dependencies": {
+    "autoservice/__init__.py": ["autoservice.core", "autoservice.config", "autoservice.database", "autoservice.importer", "autoservice.session", "autoservice.api_interfaces", "autoservice.customer_manager", "autoservice.permission", "autoservice.mock_db", "autoservice.api_client", "autoservice.logger"],
+    "autoservice/api_client.py": [],
+    "autoservice/api_interfaces.py": [],
+    "autoservice/claude.py": ["claude_agent_sdk"],
+    "autoservice/config.py": [],
+    "autoservice/core.py": [],
+    "autoservice/crm.py": [],
+    "autoservice/customer_manager.py": ["autoservice.core", "autoservice.config"],
+    "autoservice/database.py": ["autoservice.core", "autoservice.config"],
+    "autoservice/importer.py": ["autoservice.core", "autoservice.config"],
+    "autoservice/logger.py": [],
+    "autoservice/mock_db.py": [],
+    "autoservice/permission.py": [],
+    "autoservice/plugin_loader.py": ["autoservice.mock_db"],
+    "autoservice/rules.py": [],
+    "autoservice/session.py": ["autoservice.core", "autoservice.config"]
+  },
+  "test_results": {
+    "command": "no tests for this module specifically",
+    "note": "tests are in tests/ directory"
+  },
+  "user_flows": [
+    {
+      "name": "Plugin discovery and loading",
+      "steps": [
+        "discover() scans plugins/ directory for subdirectories with plugin.yaml",
+        "load_plugin() parses plugin.yaml, resolves handler references to callables",
+        "If mode=mock, initializes MockDB and seeds with JSON data",
+        "Returns list of Plugin objects with tools (MCP) and routes (HTTP) ready for registration"
+      ],
+      "entry_point": "autoservice/plugin_loader.py:229"
+    },
+    {
+      "name": "Record CRUD (file-based database)",
+      "steps": [
+        "get_domain_config() resolves domain to database_path",
+        "save_record() creates directory with info.json + README.md",
+        "list_records() scans directories, reads info.json",
+        "get_record() finds by name/ID, update_record() modifies in-place, delete_record() removes directory"
+      ],
+      "entry_point": "autoservice/database.py:30"
+    },
+    {
+      "name": "Customer cold-start flow",
+      "steps": [
+        "CustomerManager.get_or_create() is called with phone/ID/name",
+        "Attempts lookup_by_id, lookup_by_phone, lookup_by_name",
+        "If not found and phone provided, create_cold_start_customer() creates minimal record",
+        "After call, update_customer() enriches record with collected info and session history"
+      ],
+      "entry_point": "autoservice/customer_manager.py:225"
+    },
+    {
+      "name": "Session lifecycle",
+      "steps": [
+        "init_session() detects Claude session ID and creates session directory",
+        "generate_session_id() produces formatted ID: {prefix}_{date}_{seq}_{claude_id}",
+        "Conversation proceeds (external to this module)",
+        "save_session() persists conversation + review as session.json + README.md"
+      ],
+      "entry_point": "autoservice/session.py:122"
+    },
+    {
+      "name": "Permission check flow",
+      "steps": [
+        "check_permission() accepts action string and optional product permissions",
+        "Loads OperatorPermissions from product data or gets domain defaults",
+        "Checks action against forbidden, requires_process, requires_supervisor, can_approve rules in priority order",
+        "Returns PermissionCheck with level, allowed flag, reason, and optional workflow"
+      ],
+      "entry_point": "autoservice/permission.py:279"
+    },
+    {
+      "name": "CRM contact tracking (Feishu)",
+      "steps": [
+        "upsert_contact() creates/updates contact record on first message",
+        "increment_message_count() bumps counter on each message",
+        "log_message() records each inbound/outbound message",
+        "get_rules_for_customer() retrieves applicable behavior rules"
+      ],
+      "entry_point": "autoservice/crm.py:67"
+    },
+    {
+      "name": "Mock API serving",
+      "steps": [
+        "MockDB is initialized with db_path, creates 9-table schema",
+        "Plugin loader seeds MockDB from JSON seed data",
+        "APIClient reads .mock_server_info for URL, issues HTTP requests",
+        "MockDB provides CRUD for customers, products, subscriptions, billing, orders, services, pricing, features, permissions"
+      ],
+      "entry_point": "autoservice/mock_db.py:146"
+    },
+    {
+      "name": "Data import from files",
+      "steps": [
+        "import_file() or import_to_domain() called with file path and type",
+        "Dispatches to extract_from_docx/xlsx/pdf based on file extension",
+        "Each extractor parses key:value pairs or tabular data into list of dicts",
+        "save_item() persists each item as info.json + README.md in its own directory"
+      ],
+      "entry_point": "autoservice/importer.py:149"
+    },
+    {
+      "name": "Claude Agent SDK integration",
+      "steps": [
+        "query() is called with a prompt string",
+        "Configures ClaudeAgentOptions with .autoservice/.claude plugin path and proxy env",
+        "Delegates to claude_agent_sdk.query() and yields raw message objects"
+      ],
+      "entry_point": "autoservice/claude.py:13"
+    }
+  ]
+}

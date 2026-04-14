@@ -1,0 +1,20 @@
+[
+  {
+    "id": "eval-01-code-structure",
+    "type": "project-knowledge",
+    "prompt": "ChannelServer 是如何处理多个通道注册冲突的？如果两个 ChannelClient 注册了相同的 chat_id 会怎样？",
+    "expected_behavior": "应该读取 feishu/channel_server.py 的代码，引用 registration_conflict 相关逻辑的 file:line，并运行 test-channel-server.sh 获取测试证据"
+  },
+  {
+    "id": "eval-02-bug-triage",
+    "type": "bug-triage",
+    "prompt": "我发现 WebChannelBridge 在连接断开后没有自动重连，这算 bug 吗？",
+    "expected_behavior": "应该读取 web/websocket.py 的 ensure_connected 和重连逻辑，引用 file:line，跑 test-web-relay.sh 获取证据，给出判断并询问确认"
+  },
+  {
+    "id": "eval-03-pipeline-query",
+    "type": "pipeline-info",
+    "prompt": "我想为 plugin_loader 写 E2E 测试，应该怎么组织？用什么 fixture 模式？测试文件放哪里？",
+    "expected_behavior": "应该引用 SKILL.md 的测试 Pipeline 信息，说明 tests/e2e/ 目录、pytest-asyncio、无共享 fixture 的自包含模式，引用已有测试文件的 file:line 作为模板示例"
+  }
+]

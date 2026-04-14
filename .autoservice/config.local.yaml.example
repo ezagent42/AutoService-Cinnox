@@ -1,0 +1,30 @@
+# AutoService 本地配置 (复制为 config.local.yaml 使用)
+# 此文件被 gitignore，安全存放密钥和本地参数
+
+# ─── CC Pool 配置 ───────────────────────────────────────
+cc_pool:
+  # 池大小
+  min_size: 1               # 最小保持的热实例数 (健康检查会自动补充)
+  max_size: 4               # 最大并发实例数 (超出时排队等待)
+  warmup_count: 1           # 启动时预创建数量
+
+  # 回收策略
+  max_queries_per_instance: 50   # 单实例查询上限后回收 (避免上下文膨胀)
+  max_lifetime_seconds: 3600     # 单实例最大存活秒数后回收 (1小时)
+
+  # 超时与监控
+  health_check_interval: 30      # 健康检查间隔 (秒)
+  checkout_timeout: 30           # 池耗尽时最大等待秒数
+
+  # SDK 参数
+  permission_mode: bypassPermissions   # default | acceptEdits | plan | bypassPermissions
+  # model: claude-sonnet-4-5           # 不设置则使用 SDK 默认模型
+  # cli_path: /usr/local/bin/claude    # 不设置则自动检测 PATH 中的 claude
+
+# ─── 其他配置示例 ───────────────────────────────────────
+# api_keys:
+#   anthropic: sk-ant-xxx
+#
+# feishu:
+#   app_id: cli_xxx
+#   app_secret: xxx

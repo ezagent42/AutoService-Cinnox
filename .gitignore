@@ -3,6 +3,7 @@
 !.autoservice/rules/
 !.autoservice/flows/
 !.autoservice/config.yaml
+!.autoservice/config.local.yaml.example
 !.autoservice/identity.yaml
 *.db
 .env
@@ -16,9 +17,6 @@ uv.lock
 # IDE
 .idea/
 .vscode/
-
-# Dev-loop artifacts (tracked on dev branch, ignored on main)
-.artifacts/
 
 # Claude Code
 .claude/worktrees/

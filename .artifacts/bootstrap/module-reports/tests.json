@@ -1,0 +1,337 @@
+{
+  "module_name": "tests",
+  "module_path": "tests/",
+  "description": "Unit and E2E tests for the AutoService framework covering channel-server routing, channel-client registration, web relay bridge, explain command pipeline, and full integration flows",
+  "files_analyzed": [
+    {
+      "path": "tests/test_channel_client.py",
+      "lines": 45,
+      "key_symbols": [
+        {
+          "name": "test_channel_connects_and_registers",
+          "type": "function",
+          "line": 10,
+          "description": "Tests that ChannelClient connects to a mock WebSocket server and sends a register message with correct type, chat_ids, and instance_id fields"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_channel_server.py",
+      "lines": 247,
+      "key_symbols": [
+        {
+          "name": "_start_server",
+          "type": "function",
+          "line": 21,
+          "description": "Helper: creates and starts a ChannelServer with feishu_enabled=False on a given port"
+        },
+        {
+          "name": "_stop_server",
+          "type": "function",
+          "line": 30,
+          "description": "Helper: stops a running ChannelServer"
+        },
+        {
+          "name": "_connect",
+          "type": "function",
+          "line": 34,
+          "description": "Helper: opens a websockets client connection to the server"
+        },
+        {
+          "name": "_send_json",
+          "type": "function",
+          "line": 38,
+          "description": "Helper: sends a dict as JSON over a WebSocket"
+        },
+        {
+          "name": "_recv_json",
+          "type": "function",
+          "line": 42,
+          "description": "Helper: receives and parses a JSON message from a WebSocket with timeout"
+        },
+        {
+          "name": "test_server_accepts_connection",
+          "type": "function",
+          "line": 52,
+          "description": "Tests that the channel-server accepts WebSocket connections and keeps them open"
+        },
+        {
+          "name": "test_register_and_route",
+          "type": "function",
+          "line": 64,
+          "description": "Tests registering a client with a specific chat_id then routing a message to it and verifying receipt"
+        },
+        {
+          "name": "test_wildcard_receives_copy",
+          "type": "function",
+          "line": 98,
+          "description": "Tests that a wildcard (*) registered instance receives a copy of messages routed to a specific instance, with a routed_to hint"
+        },
+        {
+          "name": "test_registration_conflict",
+          "type": "function",
+          "line": 152,
+          "description": "Tests that registering the same chat_id twice produces a REGISTRATION_CONFLICT error"
+        },
+        {
+          "name": "test_unregister_on_disconnect",
+          "type": "function",
+          "line": 187,
+          "description": "Tests that disconnecting a client clears its routes from the exact_routes table and _ws_to_instance map"
+        },
+        {
+          "name": "test_inbound_message_routing",
+          "type": "function",
+          "line": 214,
+          "description": "Tests that a message sent by an unregistered web client gets routed to a wildcard-registered instance"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_explain_command.py",
+      "lines": 142,
+      "key_symbols": [
+        {
+          "name": "server",
+          "type": "fixture",
+          "line": 17,
+          "description": "pytest fixture: creates a ChannelServer with feishu_enabled=False and admin_chat_id='oc_admin_test'"
+        },
+        {
+          "name": "TestExplainCommand",
+          "type": "class",
+          "line": 26,
+          "description": "Test class for the /explain admin command in ChannelServer"
+        },
+        {
+          "name": "TestExplainCommand.test_explain_no_query_returns_usage",
+          "type": "method",
+          "line": 29,
+          "description": "Tests that /explain with no query returns a Usage message via _reply_feishu"
+        },
+        {
+          "name": "TestExplainCommand.test_explain_routes_to_wildcard",
+          "type": "method",
+          "line": 38,
+          "description": "Tests that /explain with a query replies with 'analyzing' status and routes an explain-mode message to admin_explain chat_id with correct runtime_mode and admin_chat_id"
+        },
+        {
+          "name": "TestExplainCommand.test_help_includes_explain",
+          "type": "method",
+          "line": 56,
+          "description": "Tests that the help_text() output includes /explain"
+        },
+        {
+          "name": "TestFlowYAML",
+          "type": "class",
+          "line": 61,
+          "description": "Test class validating YAML flow definitions in .autoservice/flows/ directory"
+        },
+        {
+          "name": "TestFlowYAML.test_index_has_all_flows",
+          "type": "method",
+          "line": 63,
+          "description": "Tests that _index.yaml lists all flow YAML files in the flows directory (skips if flows/ not yet created)"
+        },
+        {
+          "name": "TestFlowYAML.test_flow_has_required_fields",
+          "type": "method",
+          "line": 75,
+          "description": "Tests that each flow YAML file has all required fields: id, name, description, tags, entry, exits, nodes, edges"
+        },
+        {
+          "name": "TestFlowYAML.test_flow_entry_node_exists",
+          "type": "method",
+          "line": 89,
+          "description": "Tests that each flow's entry field references an existing node id"
+        },
+        {
+          "name": "TestFlowYAML.test_flow_edges_reference_valid_nodes",
+          "type": "method",
+          "line": 102,
+          "description": "Tests that all edges in each flow reference valid node ids for both from and to"
+        },
+        {
+          "name": "TestExplainRoute",
+          "type": "class",
+          "line": 118,
+          "description": "Test class for the /explain/* HTTP route in the web app"
+        },
+        {
+          "name": "TestExplainRoute.test_explain_serves_existing_file",
+          "type": "method",
+          "line": 120,
+          "description": "Tests that GET /explain/<file>.html serves an existing HTML file from .autoservice/explain/ directory"
+        },
+        {
+          "name": "TestExplainRoute.test_explain_404_for_missing",
+          "type": "method",
+          "line": 136,
+          "description": "Tests that GET /explain/<nonexistent>.html returns 404"
+        }
+      ]
+    },
+    {
+      "path": "tests/test_web_relay.py",
+      "lines": 95,
+      "key_symbols": [
+        {
+          "name": "test_web_bridge_connects_and_registers",
+          "type": "function",
+          "line": 10,
+          "description": "Tests that WebChannelBridge connects to a mock channel-server and registers with chat_ids=['web_*'] and role='web'"
+        },
+        {
+          "name": "test_web_bridge_demuxes_replies",
+          "type": "function",
+          "line": 52,
+          "description": "Tests that WebChannelBridge demultiplexes incoming replies to the correct subscriber queue by chat_id"
+        }
+      ]
+    },
+    {
+      "path": "tests/e2e/test_feishu_mock.py",
+      "lines": 189,
+      "key_symbols": [
+        {
+          "name": "ok",
+          "type": "function",
+          "line": 25,
+          "description": "Helper: prints pass message and increments PASS counter"
+        },
+        {
+          "name": "fail",
+          "type": "function",
+          "line": 30,
+          "description": "Helper: prints fail message and increments FAIL counter"
+        },
+        {
+          "name": "main",
+          "type": "function",
+          "line": 37,
+          "description": "Main E2E test function containing 7 tests: (1) wildcard registration, (2) message routing to wildcard, (3) mode fields preservation, (4) reply protocol, (5) specific + wildcard dual routing, (6) registration conflict rejection, (7) status text generation. Starts its own ChannelServer in-process with feishu_enabled=False."
+        }
+      ]
+    },
+    {
+      "path": "tests/e2e/test_web_chat.sh",
+      "lines": 193,
+      "key_symbols": [
+        {
+          "name": "cleanup",
+          "type": "function",
+          "line": 30,
+          "description": "Shell trap function: closes agent-browser session and kills background server processes"
+        },
+        {
+          "name": "Step 0: Start services",
+          "type": "section",
+          "line": 48,
+          "description": "Starts channel-server (FEISHU_ENABLED=0) and web server (uvicorn) as background processes"
+        },
+        {
+          "name": "Step 1: Generate access code",
+          "type": "section",
+          "line": 76,
+          "description": "Calls /admin/new-code API to get an access code for login"
+        },
+        {
+          "name": "Step 2: Login page",
+          "type": "section",
+          "line": 88,
+          "description": "Uses agent-browser to open login page, fill access code, and submit"
+        },
+        {
+          "name": "Step 3: Chat page connection",
+          "type": "section",
+          "line": 119,
+          "description": "Verifies redirect to /chat and checks WebSocket connection status"
+        },
+        {
+          "name": "Step 4: Send message",
+          "type": "section",
+          "line": 138,
+          "description": "Types and sends a chat message, checks if user message appears in the UI"
+        },
+        {
+          "name": "Step 5: End session",
+          "type": "section",
+          "line": 164,
+          "description": "Clicks end session button"
+        },
+        {
+          "name": "Step 6: Logout",
+          "type": "section",
+          "line": 173,
+          "description": "Clicks logout button and verifies redirect back to /login"
+        }
+      ]
+    }
+  ],
+  "interfaces": [],
+  "dependencies": [
+    "feishu.channel (ChannelClient)",
+    "feishu.channel_server (ChannelServer)",
+    "web.websocket (WebChannelBridge)",
+    "web.app (FastAPI app)",
+    ".autoservice/flows/ (YAML flow definitions)"
+  ],
+  "external_dependencies": {
+    "pytest": "test framework",
+    "pytest-asyncio": "async test support",
+    "websockets": "WebSocket client/server for mock servers",
+    "fastapi.testclient": "HTTP test client for web app routes",
+    "pyyaml": "YAML parsing for flow definition tests",
+    "agent-browser": "browser automation tool (e2e/test_web_chat.sh only)"
+  },
+  "test_results": {
+    "command": "uv run pytest tests/ -v",
+    "note": "to be run in Step 4"
+  },
+  "user_flows": [],
+  "test_coverage_map": {
+    "tests/test_channel_client.py": "feishu.channel (ChannelClient connect and register protocol)",
+    "tests/test_channel_server.py": "feishu.channel_server (ChannelServer WebSocket routing: accept, register, route, wildcard, conflict, disconnect cleanup, inbound message routing)",
+    "tests/test_explain_command.py": "feishu.channel_server (admin /explain command) + .autoservice/flows/ (YAML schema validation) + web.app (/explain/* HTTP route)",
+    "tests/test_web_relay.py": "web.websocket (WebChannelBridge connect, register, and reply demultiplexing)",
+    "tests/e2e/test_feishu_mock.py": "feishu.channel_server (full E2E: registration, routing, mode preservation, reply protocol, dual routing, conflict, status text)",
+    "tests/e2e/test_web_chat.sh": "web.app + feishu.channel_server (full browser E2E: login, chat, send message, end session, logout via agent-browser)"
+  },
+  "fixtures": {
+    "tests/test_explain_command.py": [
+      {
+        "name": "server",
+        "line": 17,
+        "scope": "function",
+        "description": "Creates a ChannelServer(port=0, feishu_enabled=False, admin_chat_id='oc_admin_test')"
+      }
+    ],
+    "tests/test_channel_client.py": [],
+    "tests/test_channel_server.py": [],
+    "tests/test_web_relay.py": [],
+    "tests/e2e/test_feishu_mock.py": [],
+    "tests/e2e/test_web_chat.sh": []
+  },
+  "external_services_required": {
+    "tests/test_channel_client.py": false,
+    "tests/test_channel_server.py": false,
+    "tests/test_explain_command.py": false,
+    "tests/test_web_relay.py": false,
+    "tests/e2e/test_feishu_mock.py": false,
+    "tests/e2e/test_web_chat.sh": true
+  },
+  "external_services_notes": {
+    "tests/e2e/test_web_chat.sh": "Requires agent-browser CLI tool, starts channel-server and uvicorn web server as background processes, uses curl for API calls"
+  },
+  "summary": {
+    "total_files": 6,
+    "total_lines": 911,
+    "python_test_files": 5,
+    "shell_test_files": 1,
+    "pytest_test_functions": 13,
+    "e2e_test_scenarios": 7,
+    "modules_covered": ["feishu.channel", "feishu.channel_server", "web.websocket", "web.app", ".autoservice/flows"],
+    "no_conftest_py": true,
+    "no_init_py": true
+  }
+}

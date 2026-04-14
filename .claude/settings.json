@@ -1,6 +1,4 @@
 {
-  "enableAllProjectMcpServers": true,
-  "channelsEnabled": true,
   "permissions": {
     "allow": [
       "Read(*)",
@@ -13,5 +11,18 @@
       "Bash(mkdir *)"
     ],
     "defaultMode": "acceptEdits"
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledPlugins": {
+    "dev-loop-skills@ezagent42": true
+  },
+  "extraKnownMarketplaces": {
+    "ezagent42": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/ezagent42/ezagent42.git"
+      }
+    }
+  },
+  "channelsEnabled": true
 }

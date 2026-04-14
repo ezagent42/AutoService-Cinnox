@@ -1,0 +1,185 @@
+{
+  "module_name": "plugins",
+  "module_path": "plugins/",
+  "description": "Customer-specific declarative plugins providing MCP tools and HTTP routes, loaded at runtime by plugin_loader via importlib",
+  "files_analyzed": [
+    {
+      "path": "plugins/_example/plugin.yaml",
+      "lines": 44,
+      "key_symbols": [
+        {"name": "name", "type": "config", "line": 1, "description": "Plugin name '_example', version 0.1.0, mode 'mock', installer 'upstream'"},
+        {"name": "mcp_tools", "type": "config", "line": 7, "description": "Declares 2 MCP tools: example_echo (tools.echo) and example_lookup (tools.lookup) with input schemas"},
+        {"name": "http_routes", "type": "config", "line": 30, "description": "Declares 2 HTTP routes: POST /api/example/echo (routes.post_echo) and GET /api/example/{record_id} (routes.get_record)"},
+        {"name": "mock_server", "type": "config", "line": 39, "description": "Seed data from mock_data/examples.json, database at .autoservice/database/_example/mock.db"},
+        {"name": "references", "type": "config", "line": 43, "description": "Lists references/README.md as a reference for the AI agent"}
+      ]
+    },
+    {
+      "path": "plugins/_example/routes.py",
+      "lines": 29,
+      "key_symbols": [
+        {"name": "_get_tools", "type": "function", "line": 15, "description": "Lazy-imports the tools module from sys.modules['autoservice.plugins._example.tools'] (registered by plugin_loader)"},
+        {"name": "post_echo", "type": "function", "line": 20, "description": "Async POST /api/example/echo handler; delegates to tools.echo(message=message)"},
+        {"name": "get_record", "type": "function", "line": 26, "description": "Async GET /api/example/{record_id} handler; delegates to tools.lookup(id=record_id)"}
+      ]
+    },
+    {
+      "path": "plugins/_example/tools.py",
+      "lines": 25,
+      "key_symbols": [
+        {"name": "_RECORDS", "type": "variable", "line": 9, "description": "In-memory dict of 2 example records (EX-001: Acme Corp, EX-002: Globex Inc) with id/name/status fields"},
+        {"name": "echo", "type": "function", "line": 15, "description": "Async MCP tool handler; returns {'echo': message} for the given input message"},
+        {"name": "lookup", "type": "function", "line": 20, "description": "Async MCP tool handler; looks up a record by ID from _RECORDS, returns {'record': ...} or {'error': ...}"}
+      ]
+    },
+    {
+      "path": "plugins/_example/mock_data/examples.json",
+      "lines": 22,
+      "key_symbols": [
+        {"name": "customers", "type": "data", "line": 2, "description": "Array of 2 customer records (EX-001 Acme Corp enterprise, EX-002 Globex Inc new) with id/name/phone/email/type/company/industry fields"}
+      ]
+    },
+    {
+      "path": "plugins/_example/references/README.md",
+      "lines": 15,
+      "key_symbols": [
+        {"name": "References documentation", "type": "doc", "line": 1, "description": "Explains that references/ holds glossaries, product docs, pricing tables, FAQs, and policy documents for the AI agent"}
+      ]
+    },
+    {
+      "path": "plugins/cinnox/__init__.py",
+      "lines": 0,
+      "key_symbols": []
+    },
+    {
+      "path": "plugins/cinnox/plugin.yaml",
+      "lines": 69,
+      "key_symbols": [
+        {"name": "name", "type": "config", "line": 1, "description": "Plugin name 'cinnox', version 1.0.0, mode 'mock', installer 'cinnox'"},
+        {"name": "mcp_tools", "type": "config", "line": 7, "description": "Declares 4 MCP tools: cinnox_customer_lookup, cinnox_billing, cinnox_subscriptions, cinnox_permission_check"},
+        {"name": "http_routes", "type": "config", "line": 52, "description": "Declares 3 HTTP routes: GET customers/{identifier}, GET customers/{account_id}/billing, GET customers/{account_id}/subscriptions"},
+        {"name": "mock_server", "type": "config", "line": 63, "description": "Seed data from mock_data/accounts.json, database at .autoservice/database/cinnox/mock.db"},
+        {"name": "references", "type": "config", "line": 67, "description": "Lists glossary.json and synonym-map.json as reference files for the AI agent"}
+      ]
+    },
+    {
+      "path": "plugins/cinnox/routes.py",
+      "lines": 33,
+      "key_symbols": [
+        {"name": "_get_tools", "type": "function", "line": 13, "description": "Lazy-imports the tools module from sys.modules['autoservice.plugins.cinnox.tools'] (registered by plugin_loader)"},
+        {"name": "get_customer", "type": "function", "line": 18, "description": "Async GET /api/cinnox/customers/{identifier} handler; delegates to tools.customer_lookup(identifier)"},
+        {"name": "get_billing", "type": "function", "line": 24, "description": "Async GET /api/cinnox/customers/{account_id}/billing handler; delegates to tools.billing_query with optional start_date/end_date"},
+        {"name": "get_subscriptions", "type": "function", "line": 30, "description": "Async GET /api/cinnox/customers/{account_id}/subscriptions handler; delegates to tools.subscription_query(account_id)"}
+      ]
+    },
+    {
+      "path": "plugins/cinnox/tools.py",
+      "lines": 110,
+      "key_symbols": [
+        {"name": "_db", "type": "variable", "line": 19, "description": "Module-level Optional[MockDB] instance, injected by plugin_loader at load time"},
+        {"name": "_get_db", "type": "function", "line": 21, "description": "Returns the shared MockDB instance; raises RuntimeError if not initialized"},
+        {"name": "set_db", "type": "function", "line": 27, "description": "Sets the global _db MockDB instance for all tools in this module"},
+        {"name": "_envelope", "type": "function", "line": 33, "description": "Wraps response data/error in standard API envelope dict with success/data/error/timestamp/mode fields"},
+        {"name": "customer_lookup", "type": "function", "line": 48, "description": "MCP tool: looks up CINNOX customer by identifier via db.get_customer(); logs API call"},
+        {"name": "billing_query", "type": "function", "line": 58, "description": "MCP tool: gets billing history via db.get_billing() with optional date range; logs API call"},
+        {"name": "subscription_query", "type": "function", "line": 70, "description": "MCP tool: gets active subscriptions via db.get_subscriptions(); logs API call"},
+        {"name": "permission_check", "type": "function", "line": 83, "description": "MCP tool: checks operator permissions via check_permission() from autoservice.permission; supports product-specific permissions"}
+      ]
+    },
+    {
+      "path": "plugins/cinnox/mock_data/accounts.json",
+      "lines": 116,
+      "key_symbols": [
+        {"name": "accounts array", "type": "data", "line": 1, "description": "Array of 6 CINNOX customer account records (ACC-1001 through ACC-6006) with id/name/company/email/phone/type/plan/seats/dids/integrations/billing_status/monthly_amount/notes"}
+      ]
+    },
+    {
+      "path": "plugins/cinnox/references/glossary.json",
+      "lines": 1429,
+      "key_symbols": [
+        {"name": "glossary object", "type": "data", "line": 1, "description": "Large JSON object mapping ~350 CINNOX/telecom domain terms to descriptions and related terms (e.g. 1:1 Call, ACD, DID, IVR, PSTN, WhatsApp BSP)"}
+      ]
+    },
+    {
+      "path": "plugins/cinnox/references/synonym-map.json",
+      "lines": 38,
+      "key_symbols": [
+        {"name": "synonym map object", "type": "data", "line": 1, "description": "JSON object mapping 35 abbreviations/synonyms to canonical telecom terms (e.g. acd->Average Call Duration, did->DID, ivr->Interactive Voice Response)"}
+      ]
+    }
+  ],
+  "interfaces": [
+    {"name": "echo(message: str) -> dict", "file": "plugins/_example/tools.py", "line": 15},
+    {"name": "lookup(id: str) -> dict", "file": "plugins/_example/tools.py", "line": 20},
+    {"name": "post_echo(message: str) -> dict", "file": "plugins/_example/routes.py", "line": 20},
+    {"name": "get_record(record_id: str) -> dict", "file": "plugins/_example/routes.py", "line": 26},
+    {"name": "set_db(db: MockDB) -> None", "file": "plugins/cinnox/tools.py", "line": 27},
+    {"name": "customer_lookup(identifier: str) -> dict", "file": "plugins/cinnox/tools.py", "line": 48},
+    {"name": "billing_query(account_id: str, start_date: str = None, end_date: str = None) -> dict", "file": "plugins/cinnox/tools.py", "line": 58},
+    {"name": "subscription_query(account_id: str) -> dict", "file": "plugins/cinnox/tools.py", "line": 70},
+    {"name": "permission_check(action: str, product_id: str = None) -> dict", "file": "plugins/cinnox/tools.py", "line": 83},
+    {"name": "get_customer(identifier: str) -> dict", "file": "plugins/cinnox/routes.py", "line": 18},
+    {"name": "get_billing(account_id: str, start_date: str = None, end_date: str = None) -> dict", "file": "plugins/cinnox/routes.py", "line": 24},
+    {"name": "get_subscriptions(account_id: str) -> dict", "file": "plugins/cinnox/routes.py", "line": 30}
+  ],
+  "dependencies": [
+    "autoservice.mock_db.MockDB (plugins/cinnox/tools.py:11)",
+    "autoservice.permission.check_permission (plugins/cinnox/tools.py:12)",
+    "sys.modules['autoservice.plugins._example.tools'] (plugins/_example/routes.py:17)",
+    "sys.modules['autoservice.plugins.cinnox.tools'] (plugins/cinnox/routes.py:15)",
+    "datetime.datetime (plugins/cinnox/tools.py:8)",
+    "typing.Optional (plugins/cinnox/tools.py:9)"
+  ],
+  "test_results": {"command": "n/a", "note": "No test files found within plugins/ directory; plugin testing presumably covered by framework-level tests or e2e tests"},
+  "user_flows": [
+    {
+      "name": "MCP tool dispatch (example plugin)",
+      "steps": [
+        "plugin_loader reads plugins/_example/plugin.yaml and discovers mcp_tools",
+        "plugin_loader imports plugins/_example/tools.py via importlib, registers as sys.modules['autoservice.plugins._example.tools']",
+        "MCP server (feishu/channel.py) registers example_echo and example_lookup tools",
+        "On tool call, handler invokes tools.echo() or tools.lookup() which return dict results"
+      ],
+      "entry_point": "plugins/_example/plugin.yaml:7"
+    },
+    {
+      "name": "HTTP route dispatch (example plugin)",
+      "steps": [
+        "plugin_loader reads plugins/_example/plugin.yaml http_routes section",
+        "web/app.py mounts POST /api/example/echo -> routes.post_echo and GET /api/example/{record_id} -> routes.get_record",
+        "Route handlers call _get_tools() to lazy-load the tools module from sys.modules",
+        "Delegates to tools.echo() or tools.lookup() for actual business logic"
+      ],
+      "entry_point": "plugins/_example/plugin.yaml:30"
+    },
+    {
+      "name": "CINNOX customer lookup (MCP + HTTP)",
+      "steps": [
+        "Plugin loader loads plugins/cinnox/plugin.yaml, imports tools.py, calls set_db() to inject MockDB instance",
+        "MockDB is seeded from mock_data/accounts.json (6 customer accounts)",
+        "MCP tool cinnox_customer_lookup or HTTP GET /api/cinnox/customers/{identifier} is invoked",
+        "tools.customer_lookup() queries db.get_customer(identifier), wraps result in _envelope(), logs API call"
+      ],
+      "entry_point": "plugins/cinnox/tools.py:48"
+    },
+    {
+      "name": "CINNOX billing query",
+      "steps": [
+        "MCP tool cinnox_billing or HTTP GET /api/cinnox/customers/{account_id}/billing is invoked",
+        "tools.billing_query() resolves customer via db.get_customer(), then calls db.get_billing() with optional date range",
+        "Result wrapped in _envelope() and API call logged"
+      ],
+      "entry_point": "plugins/cinnox/tools.py:58"
+    },
+    {
+      "name": "CINNOX permission check",
+      "steps": [
+        "MCP tool cinnox_permission_check is invoked with action and optional product_id",
+        "If product_id given, fetches product-specific permissions via db.get_product_full_data()",
+        "Calls autoservice.permission.check_permission() with action, product_permissions, domain='customer-service'",
+        "Returns structured result with action/level/allowed/reason/workflow/display fields"
+      ],
+      "entry_point": "plugins/cinnox/tools.py:83"
+    }
+  ]
+}

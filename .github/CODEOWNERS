@@ -1,0 +1,10 @@
+# Three-Layer Architecture — Code Ownership
+#
+# L1 framework layer — modifications require L1 maintainer review
+/socialware/         @h2oslabs/framework-team
+/channels/           @h2oslabs/framework-team
+
+# L2 application layer — L2 team owns
+/autoservice/        @h2oslabs/app-team
+/plugins/            @h2oslabs/app-team
+/skills/             @h2oslabs/app-team

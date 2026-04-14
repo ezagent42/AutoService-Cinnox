@@ -1,0 +1,24 @@
+.PHONY: setup run-channel run-web check
+
+setup:
+	@echo "==> Linking top-level dirs into .claude/"
+	@mkdir -p .claude
+	@for dir in skills commands agents hooks; do \
+		rm -f .claude/$$dir; \
+		ln -sfn ../$$dir .claude/$$dir; \
+	done
+	@echo "==> Creating runtime dirs"
+	@mkdir -p .autoservice/logs .autoservice/data .autoservice/cache
+	@echo "Done."
+
+run-channel:
+	uv run python3 channels/feishu/channel.py
+
+run-web:
+	uv run uvicorn channels.web.app:app --host 0.0.0.0 --port $${DEMO_PORT:-8000}
+
+check:
+	@echo "==> Checking plugin discovery"
+	@for link in skills/*/; do \
+		[ -L "$${link%/}" ] && echo "  plugin skill: $${link%/}"; \
+	done

@@ -18,8 +18,8 @@ from datetime import datetime
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from web import auth
-from web import session_persistence as sessions
+from channels.web import auth
+from channels.web import session_persistence as sessions
 
 
 # ── Configuration (set by app.py) ─────────────────────────────────────────

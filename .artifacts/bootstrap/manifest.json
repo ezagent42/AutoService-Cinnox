@@ -1,0 +1,1570 @@
+{
+  "project_root": "D:\\Work\\h2os.cloud\\AutoService-new",
+  "files": [
+    {
+      "path": ".autoservice-info.yaml",
+      "size_bytes": 443,
+      "lines": 12,
+      "extension": ".yaml"
+    },
+    {
+      "path": ".gitignore",
+      "size_bytes": 336,
+      "lines": 25,
+      "extension": ""
+    },
+    {
+      "path": ".mcp.json",
+      "size_bytes": 146,
+      "lines": 8,
+      "extension": ".json"
+    },
+    {
+      "path": "CLAUDE.md",
+      "size_bytes": 2758,
+      "lines": 65,
+      "extension": ".md"
+    },
+    {
+      "path": "Makefile",
+      "size_bytes": 1615,
+      "lines": 52,
+      "extension": ""
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 1111,
+      "lines": 21,
+      "extension": ".md"
+    },
+    {
+      "path": "agents/.gitkeep",
+      "size_bytes": 0,
+      "lines": 0,
+      "extension": ""
+    },
+    {
+      "path": "autoservice.sh",
+      "size_bytes": 14853,
+      "lines": 411,
+      "extension": ".sh"
+    },
+    {
+      "path": "autoservice/__init__.py",
+      "size_bytes": 2013,
+      "lines": 66,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/api_client.py",
+      "size_bytes": 7071,
+      "lines": 178,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/api_interfaces.py",
+      "size_bytes": 7364,
+      "lines": 232,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/claude.py",
+      "size_bytes": 1341,
+      "lines": 48,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/config.py",
+      "size_bytes": 5771,
+      "lines": 175,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/core.py",
+      "size_bytes": 971,
+      "lines": 33,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/crm.py",
+      "size_bytes": 9165,
+      "lines": 273,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/customer_manager.py",
+      "size_bytes": 9883,
+      "lines": 293,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/database.py",
+      "size_bytes": 10007,
+      "lines": 295,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/importer.py",
+      "size_bytes": 6260,
+      "lines": 206,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/logger.py",
+      "size_bytes": 2384,
+      "lines": 69,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/mock_db.py",
+      "size_bytes": 19192,
+      "lines": 507,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/permission.py",
+      "size_bytes": 9786,
+      "lines": 300,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/plugin_loader.py",
+      "size_bytes": 8467,
+      "lines": 268,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/rules.py",
+      "size_bytes": 2503,
+      "lines": 78,
+      "extension": ".py"
+    },
+    {
+      "path": "autoservice/session.py",
+      "size_bytes": 9945,
+      "lines": 298,
+      "extension": ".py"
+    },
+    {
+      "path": "commands/.gitkeep",
+      "size_bytes": 0,
+      "lines": 0,
+      "extension": ""
+    },
+    {
+      "path": "docs/API_ARCHITECTURE.md",
+      "size_bytes": 4155,
+      "lines": 101,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/ONBOARDING.md",
+      "size_bytes": 3965,
+      "lines": 159,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/SDK_PERFORMANCE_OPTIMIZATION.md",
+      "size_bytes": 4634,
+      "lines": 121,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/changelog/CHANGELOG.md",
+      "size_bytes": 847,
+      "lines": 23,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/evaluations/.gitkeep",
+      "size_bytes": 0,
+      "lines": 0,
+      "extension": ""
+    },
+    {
+      "path": "docs/evaluations/_index.yaml",
+      "size_bytes": 276,
+      "lines": 9,
+      "extension": ".yaml"
+    },
+    {
+      "path": "docs/evaluations/e2e-testing-design/meta.yaml",
+      "size_bytes": 198,
+      "lines": 8,
+      "extension": ".yaml"
+    },
+    {
+      "path": "docs/evaluations/three-layer-architecture/meta.yaml",
+      "size_bytes": 145,
+      "lines": 5,
+      "extension": ".yaml"
+    },
+    {
+      "path": "docs/evaluations/three-layer-architecture/reports/hjj.gemini-2026-04-09.md",
+      "size_bytes": 6859,
+      "lines": 72,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/UAT_0305/EZAgent_CINNOX_Proposal_20260305.pptx",
+      "size_bytes": 123019,
+      "lines": 820,
+      "extension": ".pptx"
+    },
+    {
+      "path": "docs/history/UAT_0305/Personas.md",
+      "size_bytes": 6458,
+      "lines": 209,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/UAT_0305/Results_Template.md",
+      "size_bytes": 16441,
+      "lines": 563,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/UAT_0305/Test_Guide.md",
+      "size_bytes": 41858,
+      "lines": 966,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/Results.md",
+      "size_bytes": 16502,
+      "lines": 565,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/leads/existing_customer_20260303_100809.json",
+      "size_bytes": 236,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/leads/existing_customer_20260303_102528.json",
+      "size_bytes": 238,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/leads/existing_customer_20260303_102559.json",
+      "size_bytes": 235,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/leads/new_customer_20260303_100706.json",
+      "size_bytes": 230,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/leads/new_customer_20260303_101727.json",
+      "size_bytes": 205,
+      "lines": 9,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/leads/new_customer_20260303_102454.json",
+      "size_bytes": 234,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/leads/partner_20260303_100827.json",
+      "size_bytes": 226,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_100803.json",
+      "size_bytes": 1616,
+      "lines": 48,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_100822.json",
+      "size_bytes": 1724,
+      "lines": 56,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_101035.json",
+      "size_bytes": 1535,
+      "lines": 48,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_101312.json",
+      "size_bytes": 1429,
+      "lines": 32,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_101507.json",
+      "size_bytes": 2105,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_101633.json",
+      "size_bytes": 1471,
+      "lines": 32,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_101741.json",
+      "size_bytes": 1952,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_102206.json",
+      "size_bytes": 1916,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_102446.json",
+      "size_bytes": 1978,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_102504.json",
+      "size_bytes": 1729,
+      "lines": 56,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_102521.json",
+      "size_bytes": 1724,
+      "lines": 48,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_102553.json",
+      "size_bytes": 1515,
+      "lines": 48,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_102808.json",
+      "size_bytes": 1586,
+      "lines": 48,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_102855.json",
+      "size_bytes": 2265,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_102914.json",
+      "size_bytes": 664,
+      "lines": 24,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_103232.json",
+      "size_bytes": 1452,
+      "lines": 32,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_103256.json",
+      "size_bytes": 1010,
+      "lines": 24,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round1/sessions/session_20260303_103413.json",
+      "size_bytes": 1617,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/Results_Round2.md",
+      "size_bytes": 32486,
+      "lines": 565,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/existing_customer_20260303_111222.json",
+      "size_bytes": 201,
+      "lines": 9,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/existing_customer_20260303_112143.json",
+      "size_bytes": 207,
+      "lines": 9,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/existing_customer_20260303_112614.json",
+      "size_bytes": 192,
+      "lines": 9,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/existing_customer_20260303_134509.json",
+      "size_bytes": 196,
+      "lines": 9,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/existing_customer_20260303_134811.json",
+      "size_bytes": 206,
+      "lines": 9,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_110600.json",
+      "size_bytes": 226,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_113435.json",
+      "size_bytes": 222,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_113846.json",
+      "size_bytes": 231,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_114236.json",
+      "size_bytes": 237,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_114548.json",
+      "size_bytes": 243,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_114822.json",
+      "size_bytes": 231,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_115146.json",
+      "size_bytes": 234,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_115431.json",
+      "size_bytes": 219,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_135916.json",
+      "size_bytes": 229,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_140438.json",
+      "size_bytes": 241,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/new_customer_20260303_140730.json",
+      "size_bytes": 294,
+      "lines": 11,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/leads/partner_20260303_112338.json",
+      "size_bytes": 216,
+      "lines": 10,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_110912.json",
+      "size_bytes": 161,
+      "lines": 7,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_111229.json",
+      "size_bytes": 997,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_112344.json",
+      "size_bytes": 929,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_112621.json",
+      "size_bytes": 1064,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_113711.json",
+      "size_bytes": 161,
+      "lines": 7,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_114115.json",
+      "size_bytes": 161,
+      "lines": 7,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_114445.json",
+      "size_bytes": 1762,
+      "lines": 76,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_114726.json",
+      "size_bytes": 1744,
+      "lines": 72,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_115101.json",
+      "size_bytes": 2327,
+      "lines": 92,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_115252.json",
+      "size_bytes": 1255,
+      "lines": 56,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_115436.json",
+      "size_bytes": 905,
+      "lines": 36,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_134516.json",
+      "size_bytes": 778,
+      "lines": 32,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_134817.json",
+      "size_bytes": 943,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_135141.json",
+      "size_bytes": 1240,
+      "lines": 36,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_135227.json",
+      "size_bytes": 156,
+      "lines": 7,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_135404.json",
+      "size_bytes": 775,
+      "lines": 32,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_135740.json",
+      "size_bytes": 1918,
+      "lines": 76,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_140150.json",
+      "size_bytes": 158,
+      "lines": 7,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round2/sessions/session_20260303_140740.json",
+      "size_bytes": 161,
+      "lines": 7,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/CINNOX_UAT_Round3_Report.pptx",
+      "size_bytes": 185676,
+      "lines": 1349,
+      "extension": ".pptx"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/EZAgent_CINNOX_SPIN_Proposal.pptx",
+      "size_bytes": 122935,
+      "lines": 818,
+      "extension": ".pptx"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/EZAgent_服务介绍与对接指南-v1.1.pptx",
+      "size_bytes": 136135,
+      "lines": 1017,
+      "extension": ".pptx"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/KB_Material_Request.md",
+      "size_bytes": 6350,
+      "lines": 122,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/Results_Round3.md",
+      "size_bytes": 35043,
+      "lines": 507,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260303_111229.json",
+      "size_bytes": 997,
+      "lines": 40,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_154045.json",
+      "size_bytes": 2044,
+      "lines": 41,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_154345.json",
+      "size_bytes": 3220,
+      "lines": 57,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_154625.json",
+      "size_bytes": 1521,
+      "lines": 41,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_154830.json",
+      "size_bytes": 1586,
+      "lines": 49,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_163117.json",
+      "size_bytes": 1727,
+      "lines": 41,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_163431.json",
+      "size_bytes": 5377,
+      "lines": 57,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_163702.json",
+      "size_bytes": 3182,
+      "lines": 57,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_164328.json",
+      "size_bytes": 3953,
+      "lines": 65,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_164519.json",
+      "size_bytes": 2428,
+      "lines": 41,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_164748.json",
+      "size_bytes": 3708,
+      "lines": 57,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_165452.json",
+      "size_bytes": 3886,
+      "lines": 65,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_165737.json",
+      "size_bytes": 1814,
+      "lines": 49,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_165926.json",
+      "size_bytes": 1372,
+      "lines": 33,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_170110.json",
+      "size_bytes": 1882,
+      "lines": 41,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_170322.json",
+      "size_bytes": 1883,
+      "lines": 41,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_170352.json",
+      "size_bytes": 705,
+      "lines": 17,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_170608.json",
+      "size_bytes": 3011,
+      "lines": 57,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_170735.json",
+      "size_bytes": 2162,
+      "lines": 41,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_185143.json",
+      "size_bytes": 2418,
+      "lines": 57,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/UAT_0305/round3/sessions/session_20260304_185710.json",
+      "size_bytes": 4838,
+      "lines": 73,
+      "extension": ".json"
+    },
+    {
+      "path": "docs/history/upgrade_0313/EZ AGENT_CINNOX_AI_Bot_0313.pptx",
+      "size_bytes": 102510,
+      "lines": 770,
+      "extension": ".pptx"
+    },
+    {
+      "path": "docs/history/upgrade_0313/README.md",
+      "size_bytes": 2291,
+      "lines": 38,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/meeting_0313_progress_report.md",
+      "size_bytes": 12461,
+      "lines": 162,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round4/Issues_Round4.md",
+      "size_bytes": 6338,
+      "lines": 131,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round4/Results_Round4.md",
+      "size_bytes": 16322,
+      "lines": 562,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round5/Issues_Round5.md",
+      "size_bytes": 632,
+      "lines": 22,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round5/Results_Round5.md",
+      "size_bytes": 23597,
+      "lines": 505,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round6/Issues_Round6.md",
+      "size_bytes": 3683,
+      "lines": 78,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round6/Results_Round6.md",
+      "size_bytes": 15503,
+      "lines": 283,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round6/Test_Guide_Round6.md",
+      "size_bytes": 15152,
+      "lines": 368,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round7/Test_Guide_Round7_v1.2.md",
+      "size_bytes": 9354,
+      "lines": 269,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round7/Test_Result_Round7_v1.2.2.md",
+      "size_bytes": 5986,
+      "lines": 168,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round7/Test_Result_Round7_v1.2.4.md",
+      "size_bytes": 6066,
+      "lines": 164,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round7/Test_Result_Round7_v1.2.6.md",
+      "size_bytes": 10062,
+      "lines": 219,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round7/Test_Result_Round7_v1.2.md",
+      "size_bytes": 7935,
+      "lines": 218,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round8/Test_Guide_Round8.md",
+      "size_bytes": 13929,
+      "lines": 409,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/round8/Test_Result_Round8.md",
+      "size_bytes": 5527,
+      "lines": 262,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/skills-architecture.md",
+      "size_bytes": 25013,
+      "lines": 572,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/upgrade-evolution.md",
+      "size_bytes": 11338,
+      "lines": 222,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/upgrade-plan-2.md",
+      "size_bytes": 46663,
+      "lines": 1029,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/upgrade-plan-3.md",
+      "size_bytes": 16112,
+      "lines": 395,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/history/upgrade_0313/upgrade-plan.md",
+      "size_bytes": 42305,
+      "lines": 809,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-05-autoservice-design.md",
+      "size_bytes": 28771,
+      "lines": 660,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-05-autoservice-implementation.md",
+      "size_bytes": 40950,
+      "lines": 1318,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-06-channel-server-design.md",
+      "size_bytes": 20715,
+      "lines": 501,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-06-improve-mode-design.md",
+      "size_bytes": 6570,
+      "lines": 153,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-06-improve-mode-implementation.md",
+      "size_bytes": 18949,
+      "lines": 538,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-06-multiuser-impl-plan.md",
+      "size_bytes": 82050,
+      "lines": 2220,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-06-web-integration-design.md",
+      "size_bytes": 19259,
+      "lines": 454,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-07-explain-command-design.md",
+      "size_bytes": 15510,
+      "lines": 387,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-07-explain-impl-plan.md",
+      "size_bytes": 24866,
+      "lines": 740,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-09-e2e-testing-design.md",
+      "size_bytes": 28491,
+      "lines": 942,
+      "extension": ".md"
+    },
+    {
+      "path": "docs/plans/2026-04-09-three-layer-architecture.md",
+      "size_bytes": 63792,
+      "lines": 1636,
+      "extension": ".md"
+    },
+    {
+      "path": "feishu/__init__.py",
+      "size_bytes": 0,
+      "lines": 0,
+      "extension": ".py"
+    },
+    {
+      "path": "feishu/channel-instructions.md",
+      "size_bytes": 2422,
+      "lines": 53,
+      "extension": ".md"
+    },
+    {
+      "path": "feishu/channel.py",
+      "size_bytes": 14698,
+      "lines": 376,
+      "extension": ".py"
+    },
+    {
+      "path": "feishu/channel_server.py",
+      "size_bytes": 48662,
+      "lines": 1143,
+      "extension": ".py"
+    },
+    {
+      "path": "hooks/.gitkeep",
+      "size_bytes": 0,
+      "lines": 0,
+      "extension": ""
+    },
+    {
+      "path": "plugins/_example/mock_data/examples.json",
+      "size_bytes": 500,
+      "lines": 22,
+      "extension": ".json"
+    },
+    {
+      "path": "plugins/_example/plugin.yaml",
+      "size_bytes": 1028,
+      "lines": 44,
+      "extension": ".yaml"
+    },
+    {
+      "path": "plugins/_example/references/README.md",
+      "size_bytes": 714,
+      "lines": 15,
+      "extension": ".md"
+    },
+    {
+      "path": "plugins/_example/routes.py",
+      "size_bytes": 929,
+      "lines": 29,
+      "extension": ".py"
+    },
+    {
+      "path": "plugins/_example/tools.py",
+      "size_bytes": 830,
+      "lines": 25,
+      "extension": ".py"
+    },
+    {
+      "path": "plugins/cinnox/__init__.py",
+      "size_bytes": 0,
+      "lines": 0,
+      "extension": ".py"
+    },
+    {
+      "path": "plugins/cinnox/mock_data/accounts.json",
+      "size_bytes": 3936,
+      "lines": 116,
+      "extension": ".json"
+    },
+    {
+      "path": "plugins/cinnox/plugin.yaml",
+      "size_bytes": 1934,
+      "lines": 69,
+      "extension": ".yaml"
+    },
+    {
+      "path": "plugins/cinnox/references/glossary.json",
+      "size_bytes": 79266,
+      "lines": 1430,
+      "extension": ".json"
+    },
+    {
+      "path": "plugins/cinnox/references/synonym-map.json",
+      "size_bytes": 1912,
+      "lines": 39,
+      "extension": ".json"
+    },
+    {
+      "path": "plugins/cinnox/routes.py",
+      "size_bytes": 1132,
+      "lines": 33,
+      "extension": ".py"
+    },
+    {
+      "path": "plugins/cinnox/tools.py",
+      "size_bytes": 3785,
+      "lines": 110,
+      "extension": ".py"
+    },
+    {
+      "path": "pyproject.toml",
+      "size_bytes": 728,
+      "lines": 39,
+      "extension": ".toml"
+    },
+    {
+      "path": "skills/_shared/scripts/check_permission.py",
+      "size_bytes": 1467,
+      "lines": 47,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/_shared/scripts/init_session.py",
+      "size_bytes": 1117,
+      "lines": 39,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/_shared/scripts/query_api.py",
+      "size_bytes": 2313,
+      "lines": 65,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/_shared/scripts/seed_mock_db.py",
+      "size_bytes": 8736,
+      "lines": 239,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/_shared/scripts/start_mock_server.py",
+      "size_bytes": 3710,
+      "lines": 118,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/_shared/scripts/stop_mock_server.py",
+      "size_bytes": 1485,
+      "lines": 51,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/cinnox-demo/SKILL.md",
+      "size_bytes": 37156,
+      "lines": 706,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/cinnox-demo/SKILL_WEB.md",
+      "size_bytes": 7931,
+      "lines": 176,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/cinnox-demo/scripts/route_query.py",
+      "size_bytes": 19492,
+      "lines": 475,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/cinnox-demo/scripts/save_lead.py",
+      "size_bytes": 1734,
+      "lines": 59,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/cinnox-demo/scripts/save_session.py",
+      "size_bytes": 3660,
+      "lines": 95,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/customer-service/SKILL.md",
+      "size_bytes": 21416,
+      "lines": 574,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/customer-service/config.yaml",
+      "size_bytes": 518,
+      "lines": 20,
+      "extension": ".yaml"
+    },
+    {
+      "path": "skills/customer-service/references/customer-personas.md",
+      "size_bytes": 5779,
+      "lines": 179,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/customer-service/references/mock-templates-en.md",
+      "size_bytes": 23207,
+      "lines": 548,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/customer-service/references/mock-templates.md",
+      "size_bytes": 19815,
+      "lines": 548,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/customer-service/references/service-methodologies.md",
+      "size_bytes": 5727,
+      "lines": 202,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/customer-service/scripts/delete_record.py",
+      "size_bytes": 1593,
+      "lines": 52,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/customer-service/scripts/get_record.py",
+      "size_bytes": 1379,
+      "lines": 47,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/customer-service/scripts/import_data.py",
+      "size_bytes": 1415,
+      "lines": 44,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/customer-service/scripts/list_records.py",
+      "size_bytes": 1444,
+      "lines": 49,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/customer-service/scripts/save_record.py",
+      "size_bytes": 1074,
+      "lines": 41,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/customer-service/scripts/save_session.py",
+      "size_bytes": 3388,
+      "lines": 93,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/customer-service/scripts/update_record.py",
+      "size_bytes": 1691,
+      "lines": 53,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/evaluate/SKILL.md",
+      "size_bytes": 9660,
+      "lines": 251,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/evaluate/references/dimensions.md",
+      "size_bytes": 10127,
+      "lines": 301,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/evaluate/scripts/init_eval.py",
+      "size_bytes": 2914,
+      "lines": 86,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/evaluate/scripts/list_evals.py",
+      "size_bytes": 1758,
+      "lines": 55,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/evaluate/templates/report.md",
+      "size_bytes": 1264,
+      "lines": 47,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/evaluate/templates/synthesis.md",
+      "size_bytes": 1741,
+      "lines": 60,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/explain/SKILL.md",
+      "size_bytes": 3412,
+      "lines": 116,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/explain/templates/dagre.min.js",
+      "size_bytes": 96839,
+      "lines": 801,
+      "extension": ".js"
+    },
+    {
+      "path": "skills/explain/templates/explain.html",
+      "size_bytes": 26921,
+      "lines": 683,
+      "extension": ".html"
+    },
+    {
+      "path": "skills/improve/SKILL.md",
+      "size_bytes": 4677,
+      "lines": 124,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/knowledge-base/SKILL.md",
+      "size_bytes": 5285,
+      "lines": 179,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/knowledge-base/config.yaml",
+      "size_bytes": 363,
+      "lines": 15,
+      "extension": ".yaml"
+    },
+    {
+      "path": "skills/knowledge-base/references/sources.json",
+      "size_bytes": 4163,
+      "lines": 131,
+      "extension": ".json"
+    },
+    {
+      "path": "skills/knowledge-base/scripts/build_glossary.py",
+      "size_bytes": 6008,
+      "lines": 169,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/knowledge-base/scripts/kb_ingest.py",
+      "size_bytes": 30052,
+      "lines": 774,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/knowledge-base/scripts/kb_migrate.py",
+      "size_bytes": 4506,
+      "lines": 130,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/knowledge-base/scripts/kb_search.py",
+      "size_bytes": 9745,
+      "lines": 256,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/knowledge-base/scripts/kb_status.py",
+      "size_bytes": 3545,
+      "lines": 108,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/knowledge-base/scripts/kb_subagent.py",
+      "size_bytes": 2580,
+      "lines": 81,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/marketing/SKILL.md",
+      "size_bytes": 22359,
+      "lines": 598,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/marketing/config.yaml",
+      "size_bytes": 484,
+      "lines": 20,
+      "extension": ".yaml"
+    },
+    {
+      "path": "skills/marketing/references/customer-personas.md",
+      "size_bytes": 3497,
+      "lines": 119,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/marketing/references/mock-templates-en.md",
+      "size_bytes": 26469,
+      "lines": 597,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/marketing/references/mock-templates.md",
+      "size_bytes": 21801,
+      "lines": 597,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/marketing/references/spin-selling.md",
+      "size_bytes": 3307,
+      "lines": 98,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/marketing/scripts/delete_record.py",
+      "size_bytes": 1572,
+      "lines": 52,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/marketing/scripts/get_record.py",
+      "size_bytes": 1358,
+      "lines": 47,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/marketing/scripts/import_data.py",
+      "size_bytes": 1394,
+      "lines": 44,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/marketing/scripts/list_records.py",
+      "size_bytes": 1423,
+      "lines": 49,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/marketing/scripts/save_record.py",
+      "size_bytes": 1301,
+      "lines": 44,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/marketing/scripts/save_session.py",
+      "size_bytes": 3323,
+      "lines": 92,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/marketing/scripts/update_record.py",
+      "size_bytes": 1669,
+      "lines": 53,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/sales-demo/SKILL.md",
+      "size_bytes": 14602,
+      "lines": 379,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/sales-demo/SKILL_WEB.md",
+      "size_bytes": 6211,
+      "lines": 155,
+      "extension": ".md"
+    },
+    {
+      "path": "skills/sales-demo/references/glossary.json",
+      "size_bytes": 79266,
+      "lines": 1430,
+      "extension": ".json"
+    },
+    {
+      "path": "skills/sales-demo/references/synonym-map.json",
+      "size_bytes": 1912,
+      "lines": 39,
+      "extension": ".json"
+    },
+    {
+      "path": "skills/sales-demo/scripts/route_query.py",
+      "size_bytes": 19457,
+      "lines": 475,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/sales-demo/scripts/save_lead.py",
+      "size_bytes": 1723,
+      "lines": 59,
+      "extension": ".py"
+    },
+    {
+      "path": "skills/sales-demo/scripts/save_session.py",
+      "size_bytes": 3649,
+      "lines": 95,
+      "extension": ".py"
+    },
+    {
+      "path": "tests/e2e/test_feishu_mock.py",
+      "size_bytes": 7058,
+      "lines": 189,
+      "extension": ".py"
+    },
+    {
+      "path": "tests/e2e/test_web_chat.sh",
+      "size_bytes": 8186,
+      "lines": 193,
+      "extension": ".sh"
+    },
+    {
+      "path": "tests/test_channel_client.py",
+      "size_bytes": 1378,
+      "lines": 45,
+      "extension": ".py"
+    },
+    {
+      "path": "tests/test_channel_server.py",
+      "size_bytes": 7509,
+      "lines": 247,
+      "extension": ".py"
+    },
+    {
+      "path": "tests/test_explain_command.py",
+      "size_bytes": 5374,
+      "lines": 142,
+      "extension": ".py"
+    },
+    {
+      "path": "tests/test_web_relay.py",
+      "size_bytes": 3348,
+      "lines": 95,
+      "extension": ".py"
+    },
+    {
+      "path": "uv.lock",
+      "size_bytes": 309900,
+      "lines": 1589,
+      "extension": ".lock"
+    },
+    {
+      "path": "web/__init__.py",
+      "size_bytes": 0,
+      "lines": 0,
+      "extension": ".py"
+    },
+    {
+      "path": "web/app.py",
+      "size_bytes": 13505,
+      "lines": 322,
+      "extension": ".py"
+    },
+    {
+      "path": "web/auth.py",
+      "size_bytes": 10168,
+      "lines": 285,
+      "extension": ".py"
+    },
+    {
+      "path": "web/plugin_kb.py",
+      "size_bytes": 3629,
+      "lines": 102,
+      "extension": ".py"
+    },
+    {
+      "path": "web/session_persistence.py",
+      "size_bytes": 4431,
+      "lines": 124,
+      "extension": ".py"
+    },
+    {
+      "path": "web/static/cinnox.html",
+      "size_bytes": 80606,
+      "lines": 1993,
+      "extension": ".html"
+    },
+    {
+      "path": "web/static/index.html",
+      "size_bytes": 6468,
+      "lines": 202,
+      "extension": ".html"
+    },
+    {
+      "path": "web/static/js/marked.min.js",
+      "size_bytes": 36060,
+      "lines": 6,
+      "extension": ".js"
+    },
+    {
+      "path": "web/static/login.html",
+      "size_bytes": 9688,
+      "lines": 302,
+      "extension": ".html"
+    },
+    {
+      "path": "web/websocket.py",
+      "size_bytes": 12355,
+      "lines": 326,
+      "extension": ".py"
+    }
+  ],
+  "summary": {
+    "total_files": 258,
+    "total_lines": 55451,
+    "by_extension": {
+      ".json": 90,
+      ".md": 69,
+      ".py": 69,
+      ".yaml": 9,
+      "(no ext)": 6,
+      ".pptx": 5,
+      ".html": 4,
+      ".sh": 2,
+      ".js": 2,
+      ".toml": 1,
+      ".lock": 1
+    }
+  }
+}

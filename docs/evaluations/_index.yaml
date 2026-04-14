@@ -1,0 +1,9 @@
+targets:
+- slug: e2e-testing-design
+  target: docs/plans/2026-04-09-e2e-testing-design.md
+  type: plan
+  created_date: '2026-04-09'
+- slug: three-layer-architecture
+  target: docs/plans/2026-04-09-three-layer-architecture.md
+  type: plan
+  created_date: '2026-04-10'

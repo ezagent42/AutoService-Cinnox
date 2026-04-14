@@ -1,0 +1,17 @@
+[project]
+name = "{{APP_NAME}}"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    # socialware/ directory exists via fork — no pip dependency needed
+    # L2 application dependencies:
+    "anthropic",
+    "fastapi",
+    "uvicorn[standard]",
+    "httpx",
+    "pyyaml",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

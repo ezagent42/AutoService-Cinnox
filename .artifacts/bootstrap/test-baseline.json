@@ -1,0 +1,101 @@
+{
+  "command": "uv run pytest tests/ -v",
+  "exit_code": 0,
+  "total": 18,
+  "passed": 14,
+  "failed": 0,
+  "skipped": 4,
+  "duration_seconds": 2.89,
+  "skipped_tests": [
+    {
+      "test": "tests/test_explain_command.py::TestFlowYAML::test_index_has_all_flows",
+      "reason": "flows/ not yet created"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestFlowYAML::test_flow_has_required_fields",
+      "reason": "flows/ not yet created"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestFlowYAML::test_flow_entry_node_exists",
+      "reason": "flows/ not yet created"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestFlowYAML::test_flow_edges_reference_valid_nodes",
+      "reason": "flows/ not yet created"
+    }
+  ],
+  "test_results": [
+    {
+      "test": "tests/test_channel_client.py::test_channel_connects_and_registers",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_channel_server.py::test_server_accepts_connection",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_channel_server.py::test_register_and_route",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_channel_server.py::test_wildcard_receives_copy",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_channel_server.py::test_registration_conflict",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_channel_server.py::test_unregister_on_disconnect",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_channel_server.py::test_inbound_message_routing",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestExplainCommand::test_explain_no_query_returns_usage",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestExplainCommand::test_explain_routes_to_wildcard",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestExplainCommand::test_help_includes_explain",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestFlowYAML::test_index_has_all_flows",
+      "status": "skipped"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestFlowYAML::test_flow_has_required_fields",
+      "status": "skipped"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestFlowYAML::test_flow_entry_node_exists",
+      "status": "skipped"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestFlowYAML::test_flow_edges_reference_valid_nodes",
+      "status": "skipped"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestExplainRoute::test_explain_serves_existing_file",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_explain_command.py::TestExplainRoute::test_explain_404_for_missing",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_web_relay.py::test_web_bridge_connects_and_registers",
+      "status": "passed"
+    },
+    {
+      "test": "tests/test_web_relay.py::test_web_bridge_demuxes_replies",
+      "status": "passed"
+    }
+  ]
+}

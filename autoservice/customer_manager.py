@@ -12,8 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 
-from autoservice.core import generate_id, sanitize_name, ensure_dir
-from autoservice.config import get_domain_config
+from socialware.core import generate_id, sanitize_name, ensure_dir
+from socialware.config import get_domain_config
 
 
 class CustomerManager:

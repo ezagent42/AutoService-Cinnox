@@ -9,7 +9,7 @@ Architecture:
 - consume_messages reads from ChannelClient queue, injects into MCP write_stream
 - server.run, ChannelClient.connect, and consume_messages run in parallel via anyio task group
 
-Plugin tools from autoservice.plugin_loader are dynamically registered
+Plugin tools from socialware.plugin_loader are dynamically registered
 alongside the core reply/react tools.
 """
 import asyncio
@@ -319,7 +319,7 @@ async def main():
     global _channel_client, _event_loop
     _event_loop = asyncio.get_running_loop()
 
-    from autoservice.plugin_loader import discover
+    from socialware.plugin_loader import discover
     plugins = discover("plugins")
     all_tools = []
     for p in plugins:

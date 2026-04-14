@@ -1,0 +1,693 @@
+{
+  "module_name": "web",
+  "module_path": "web/",
+  "description": "FastAPI web chat channel with access-code authentication, WebSocket relay to channel-server, session persistence, plugin KB integration, and CINNOX-branded chat UI",
+  "files_analyzed": [
+    {
+      "path": "web/__init__.py",
+      "lines": 0,
+      "key_symbols": [],
+      "notes": "Empty package init file"
+    },
+    {
+      "path": "web/app.py",
+      "lines": 322,
+      "key_symbols": [
+        {
+          "name": "ROOT",
+          "type": "constant",
+          "line": 51,
+          "description": "Project root path (parent of web/)"
+        },
+        {
+          "name": "STATIC",
+          "type": "constant",
+          "line": 52,
+          "description": "Static files directory path (web/static/)"
+        },
+        {
+          "name": "SESSIONS_DIR",
+          "type": "constant",
+          "line": 54,
+          "description": "Session persistence directory (.autoservice/database/sessions)"
+        },
+        {
+          "name": "LEADS_DIR",
+          "type": "constant",
+          "line": 55,
+          "description": "Leads storage directory (.autoservice/database/knowledge_base/leads)"
+        },
+        {
+          "name": "ADMIN_KEY",
+          "type": "constant",
+          "line": 59,
+          "description": "Admin API key from env or auto-generated token"
+        },
+        {
+          "name": "lifespan",
+          "type": "function",
+          "line": 85,
+          "description": "FastAPI lifespan context manager: starts idle_purge_loop, discovers plugins, mounts plugin HTTP routes, prints startup banner"
+        },
+        {
+          "name": "app",
+          "type": "variable",
+          "line": 123,
+          "description": "FastAPI application instance (title='AutoService Web')"
+        },
+        {
+          "name": "page_index",
+          "type": "function",
+          "line": 137,
+          "description": "GET / - redirects to /login"
+        },
+        {
+          "name": "page_login",
+          "type": "function",
+          "line": 142,
+          "description": "GET /login - serves login.html"
+        },
+        {
+          "name": "page_chat",
+          "type": "function",
+          "line": 147,
+          "description": "GET /chat - serves chat.html from plugin static dirs or built-in static; raises 404 if none found"
+        },
+        {
+          "name": "serve_explain",
+          "type": "function",
+          "line": 165,
+          "description": "GET /explain/{path} - serves generated explain flow visualization HTML pages from .autoservice/explain/"
+        },
+        {
+          "name": "api_kb_search",
+          "type": "function",
+          "line": 181,
+          "description": "GET /api/kb_search - knowledge base search endpoint with query, top_k, source_filter, countries parameters"
+        },
+        {
+          "name": "api_route_query",
+          "type": "function",
+          "line": 205,
+          "description": "GET /api/route_query - routes a customer query returning domain/region/role JSON"
+        },
+        {
+          "name": "api_save_lead",
+          "type": "function",
+          "line": 215,
+          "description": "POST /api/save_lead - saves collected lead data with tolerant JSON parsing; supports new_customer/existing_customer/partner types"
+        },
+        {
+          "name": "api_list_sessions",
+          "type": "function",
+          "line": 252,
+          "description": "GET /api/sessions - lists up to 50 sessions for authenticated user (requires valid token)"
+        },
+        {
+          "name": "api_get_session",
+          "type": "function",
+          "line": 279,
+          "description": "GET /api/sessions/{session_id} - retrieves session detail by ID (requires valid token)"
+        },
+        {
+          "name": "api_changelog",
+          "type": "function",
+          "line": 300,
+          "description": "GET /api/changelog - returns version and content from CHANGELOG.md with EN/ZH i18n support"
+        }
+      ]
+    },
+    {
+      "path": "web/auth.py",
+      "lines": 285,
+      "key_symbols": [
+        {
+          "name": "configure",
+          "type": "function",
+          "line": 27,
+          "description": "Sets admin_key, idle_timeout_seconds, and auth_file path; called by app.py at startup"
+        },
+        {
+          "name": "_Code",
+          "type": "class",
+          "line": 40,
+          "description": "Dataclass representing an access code with code, expires_at, label, status, created_at fields; has is_usable property"
+        },
+        {
+          "name": "get_code_for_token",
+          "type": "function",
+          "line": 60,
+          "description": "Returns the access code associated with a session token"
+        },
+        {
+          "name": "touch_token",
+          "type": "function",
+          "line": 65,
+          "description": "Updates the idle-timeout clock for a token (called on each user message)"
+        },
+        {
+          "name": "save_auth",
+          "type": "function",
+          "line": 71,
+          "description": "Persists all auth state (codes, tokens, mappings) to auth_store.json"
+        },
+        {
+          "name": "load_auth",
+          "type": "function",
+          "line": 96,
+          "description": "Loads auth state from auth_store.json on startup"
+        },
+        {
+          "name": "_evict_token",
+          "type": "function",
+          "line": 119,
+          "description": "Removes a session token and releases the code's exclusive lock"
+        },
+        {
+          "name": "purge",
+          "type": "function",
+          "line": 128,
+          "description": "Marks expired codes, cleans up expired/idle tokens, saves state if changed"
+        },
+        {
+          "name": "idle_purge_loop",
+          "type": "function",
+          "line": 149,
+          "description": "Background async task sweeping idle/expired tokens every 60 seconds"
+        },
+        {
+          "name": "valid_token",
+          "type": "function",
+          "line": 156,
+          "description": "Validates a session token (calls purge first to evict stale tokens)"
+        },
+        {
+          "name": "admin_new_code",
+          "type": "function",
+          "line": 162,
+          "description": "GET /admin/new-code handler - generates a single 8-char access code; requires admin key"
+        },
+        {
+          "name": "admin_batch_codes",
+          "type": "function",
+          "line": 190,
+          "description": "GET /admin/batch-codes handler - batch generates 1-50 access codes; requires admin key"
+        },
+        {
+          "name": "admin_list_codes",
+          "type": "function",
+          "line": 228,
+          "description": "GET /admin/codes handler - lists all access codes with status; requires admin key"
+        },
+        {
+          "name": "auth_verify",
+          "type": "function",
+          "line": 245,
+          "description": "POST /auth/verify handler - verifies access code, enforces exclusive-lock (one session per code), returns session token"
+        },
+        {
+          "name": "auth_logout",
+          "type": "function",
+          "line": 280,
+          "description": "POST /auth/logout handler - evicts token and releases code lock"
+        }
+      ]
+    },
+    {
+      "path": "web/plugin_kb.py",
+      "lines": 102,
+      "key_symbols": [
+        {
+          "name": "configure",
+          "type": "function",
+          "line": 22,
+          "description": "Sets search paths for KB and route query scripts based on project root"
+        },
+        {
+          "name": "get_kb_search",
+          "type": "function",
+          "line": 37,
+          "description": "Lazy-loads and returns the KB search module from configured search paths"
+        },
+        {
+          "name": "get_route_query",
+          "type": "function",
+          "line": 51,
+          "description": "Lazy-loads and returns the route query module from configured search paths"
+        },
+        {
+          "name": "presearch_kb",
+          "type": "function",
+          "line": 65,
+          "description": "Pre-searches KB before calling Claude, injects results into prompt as context; returns (augmented_prompt, hit_count); skips for short inputs (<12 chars) or when gate not cleared"
+        }
+      ]
+    },
+    {
+      "path": "web/session_persistence.py",
+      "lines": 124,
+      "key_symbols": [
+        {
+          "name": "configure",
+          "type": "function",
+          "line": 18,
+          "description": "Sets the sessions directory path; called by app.py"
+        },
+        {
+          "name": "new_web_session_id",
+          "type": "function",
+          "line": 24,
+          "description": "Generates a new session ID with timestamp format session_YYYYMMDD_HHMMSS"
+        },
+        {
+          "name": "session_dir_for_code",
+          "type": "function",
+          "line": 28,
+          "description": "Returns per-code subdirectory under SESSIONS_DIR (creates if needed); anonymous codes map to _anonymous bucket"
+        },
+        {
+          "name": "infer_session_meta",
+          "type": "function",
+          "line": 36,
+          "description": "Infers customer_type (new_customer/existing_customer/partner/unknown) and resolution (abandoned/transferred) from conversation text using keyword matching; scans user messages for type, all messages for resolution"
+        },
+        {
+          "name": "save_session_data",
+          "type": "function",
+          "line": 95,
+          "description": "Saves session JSON to per-code subdirectory"
+        },
+        {
+          "name": "load_session_data",
+          "type": "function",
+          "line": 102,
+          "description": "Loads session data by ID with fast path (code_hint) and fallback (scan all subdirectories)"
+        }
+      ]
+    },
+    {
+      "path": "web/websocket.py",
+      "lines": 326,
+      "key_symbols": [
+        {
+          "name": "configure",
+          "type": "function",
+          "line": 29,
+          "description": "Sets channel-server WebSocket URL; called by app.py"
+        },
+        {
+          "name": "WebChannelBridge",
+          "type": "class",
+          "line": 35,
+          "description": "Singleton that maintains a single WS connection to channel-server and multiplexes all browser sessions over it; handles registration, receive loop, subscribe/unsubscribe by chat_id, ping/pong"
+        },
+        {
+          "name": "WebChannelBridge.ensure_connected",
+          "type": "method",
+          "line": 45,
+          "description": "Connects to channel-server, sends register message with chat_ids=['web_*'], waits for ack, starts receive loop"
+        },
+        {
+          "name": "WebChannelBridge._receive_loop",
+          "type": "method",
+          "line": 72,
+          "description": "Async receive loop: demultiplexes incoming messages by chat_id to subscriber queues; handles ping/pong; notifies all subscribers on disconnect"
+        },
+        {
+          "name": "WebChannelBridge.subscribe",
+          "type": "method",
+          "line": 105,
+          "description": "Creates and returns an asyncio.Queue for a chat_id"
+        },
+        {
+          "name": "WebChannelBridge.unsubscribe",
+          "type": "method",
+          "line": 110,
+          "description": "Removes subscriber queue for a chat_id"
+        },
+        {
+          "name": "WebChannelBridge.send_message",
+          "type": "method",
+          "line": 113,
+          "description": "Sends a JSON message over the bridge connection"
+        },
+        {
+          "name": "_get_bridge",
+          "type": "function",
+          "line": 123,
+          "description": "Returns module-level singleton WebChannelBridge instance, ensuring it is connected"
+        },
+        {
+          "name": "ws_generic",
+          "type": "function",
+          "line": 132,
+          "description": "WS /ws handler - accepts connection, sends error message directing to /ws/chat, then closes"
+        },
+        {
+          "name": "ws_chat",
+          "type": "function",
+          "line": 143,
+          "description": "WS /ws/chat handler - authenticated chat relay: validates token, inits session, connects to bridge, runs 3 concurrent tasks (browser_to_server, server_to_browser, heartbeat)"
+        }
+      ]
+    },
+    {
+      "path": "web/static/login.html",
+      "lines": 302,
+      "key_symbols": [
+        {
+          "name": "verify()",
+          "type": "function",
+          "line": 233,
+          "description": "JavaScript: sends access code to /auth/verify, stores token in sessionStorage, redirects to /chat on success"
+        },
+        {
+          "name": "toggleLang()",
+          "type": "function",
+          "line": 214,
+          "description": "JavaScript: toggles between EN/ZH localization"
+        },
+        {
+          "name": "showInUse()",
+          "type": "function",
+          "line": 284,
+          "description": "JavaScript: shows banner when access code is in use by another session (HTTP 409)"
+        }
+      ],
+      "notes": "Access code login page with EN/ZH i18n, error handling for expired/invalid/in-use codes, fetches changelog version"
+    },
+    {
+      "path": "web/static/index.html",
+      "lines": 202,
+      "key_symbols": [
+        {
+          "name": "connect()",
+          "type": "function",
+          "line": 111,
+          "description": "JavaScript: connects to generic /ws endpoint with auto-reconnect"
+        },
+        {
+          "name": "handleMessage()",
+          "type": "function",
+          "line": 138,
+          "description": "JavaScript: handles chunk/done/error message types from WebSocket"
+        },
+        {
+          "name": "sendMessage()",
+          "type": "function",
+          "line": 182,
+          "description": "JavaScript: sends user input as JSON message over WebSocket"
+        }
+      ],
+      "notes": "Minimal dark-themed debug/terminal-style chat UI connecting to /ws generic endpoint; Chinese UI text"
+    },
+    {
+      "path": "web/static/cinnox.html",
+      "lines": 1993,
+      "key_symbols": [
+        {
+          "name": "connect()",
+          "type": "function",
+          "line": 1266,
+          "description": "JavaScript: connects to /ws/cinnox WebSocket, sends auth token+mode on open"
+        },
+        {
+          "name": "handleMsg()",
+          "type": "function",
+          "line": 1300,
+          "description": "JavaScript: message dispatcher handling ready, session_resumed, agent_joined, turn_meta, thinking, bot_text_delta, kb_searching, kb_sources, subagent_start, subagent_result, bot_text, done, session_ended, error, heartbeat types"
+        },
+        {
+          "name": "send()",
+          "type": "function",
+          "line": 1590,
+          "description": "JavaScript: sends user message; queues if AI is responding (non-blocking queue mode)"
+        },
+        {
+          "name": "switchMode()",
+          "type": "function",
+          "line": 1163,
+          "description": "JavaScript: switches between sales/service mode, resets chat, reconnects WebSocket"
+        },
+        {
+          "name": "resumeSession()",
+          "type": "function",
+          "line": 1926,
+          "description": "JavaScript: sends resume_session command to restore a previous chat session"
+        },
+        {
+          "name": "loadSessions()",
+          "type": "function",
+          "line": 1847,
+          "description": "JavaScript: fetches /api/sessions and populates session history sidebar"
+        },
+        {
+          "name": "openSessionModal()",
+          "type": "function",
+          "line": 1884,
+          "description": "JavaScript: fetches session detail and displays it in a modal with conversation replay and resume button"
+        },
+        {
+          "name": "parseLeadHints()",
+          "type": "function",
+          "line": 1079,
+          "description": "JavaScript: detects lead info (customer type, name/company/email/phone) from bot message text to update sidebar field ticks"
+        },
+        {
+          "name": "parseServiceHints()",
+          "type": "function",
+          "line": 1122,
+          "description": "JavaScript: detects service account info (account ID, agent name, service no, issue) from bot messages"
+        },
+        {
+          "name": "buildKbCard()",
+          "type": "function",
+          "line": 1717,
+          "description": "JavaScript: creates collapsible KB sources card showing search query and results"
+        },
+        {
+          "name": "buildSubagentCard()",
+          "type": "function",
+          "line": 1746,
+          "description": "JavaScript: creates collapsible subagent trace card showing agent names, elapsed times, result previews"
+        },
+        {
+          "name": "I18N",
+          "type": "variable",
+          "line": 904,
+          "description": "JavaScript: full EN/ZH localization dictionary for all UI strings"
+        },
+        {
+          "name": "endSession()",
+          "type": "function",
+          "line": 1646,
+          "description": "JavaScript: sends end_session message via WebSocket"
+        },
+        {
+          "name": "logout()",
+          "type": "function",
+          "line": 1654,
+          "description": "JavaScript: calls /auth/logout, clears sessionStorage, redirects to /login"
+        },
+        {
+          "name": "showChangelog()",
+          "type": "function",
+          "line": 1952,
+          "description": "JavaScript: renders CHANGELOG.md content in a modal via marked.js"
+        },
+        {
+          "name": "toggleSidebar()",
+          "type": "function",
+          "line": 1979,
+          "description": "JavaScript: toggles mobile sidebar visibility"
+        }
+      ],
+      "notes": "Full-featured CINNOX-branded chat UI with header, chat column, sidebar (session info, lead/account fields, KB stats, access info, session history), session detail modal, changelog modal, mobile responsive layout, markdown rendering via marked.js, message queueing, WebSocket watchdog, human agent support"
+    },
+    {
+      "path": "web/static/js/marked.min.js",
+      "lines": 6,
+      "key_symbols": [],
+      "notes": "Minified marked.js library for markdown-to-HTML rendering in cinnox.html"
+    }
+  ],
+  "interfaces": [
+    {"name": "GET /", "file": "web/app.py", "line": 137, "description": "Redirects to /login"},
+    {"name": "GET /login", "file": "web/app.py", "line": 142, "description": "Serves login.html"},
+    {"name": "GET /chat", "file": "web/app.py", "line": 147, "description": "Serves chat.html (plugin or built-in)"},
+    {"name": "GET /explain/{path}", "file": "web/app.py", "line": 165, "description": "Serves explain flow visualization pages"},
+    {"name": "GET /admin/new-code?key=&expires_in=&label=", "file": "web/auth.py", "line": 162, "description": "Generate 1 access code (admin key required)"},
+    {"name": "GET /admin/batch-codes?key=&count=&expires_in=&label=", "file": "web/auth.py", "line": 190, "description": "Batch generate 1-50 access codes (admin key required)"},
+    {"name": "GET /admin/codes?key=", "file": "web/auth.py", "line": 228, "description": "List all access codes with status (admin key required)"},
+    {"name": "POST /auth/verify", "file": "web/auth.py", "line": 245, "description": "Verify access code, return session token; enforces exclusive lock"},
+    {"name": "POST /auth/logout", "file": "web/auth.py", "line": 280, "description": "Release session token and code lock"},
+    {"name": "WS /ws", "file": "web/websocket.py", "line": 132, "description": "Generic WebSocket (sends error, directs to /ws/chat)"},
+    {"name": "WS /ws/chat", "file": "web/websocket.py", "line": 143, "description": "Authenticated chat WebSocket with channel-server relay"},
+    {"name": "WS /ws/cinnox", "file": "web/app.py", "line": 176, "description": "Alias for /ws/chat used by cinnox.html plugin chat page"},
+    {"name": "GET /api/kb_search?query=&top_k=&source_filter=&countries=", "file": "web/app.py", "line": 181, "description": "Knowledge base search endpoint"},
+    {"name": "GET /api/route_query?query=", "file": "web/app.py", "line": 205, "description": "Route customer query to domain/region/role"},
+    {"name": "POST /api/save_lead", "file": "web/app.py", "line": 215, "description": "Save collected lead data (new_customer/existing_customer/partner)"},
+    {"name": "GET /api/sessions?token=", "file": "web/app.py", "line": 252, "description": "List sessions for authenticated user"},
+    {"name": "GET /api/sessions/{session_id}?token=", "file": "web/app.py", "line": 279, "description": "Get session detail by ID"},
+    {"name": "GET /api/changelog?lang=", "file": "web/app.py", "line": 300, "description": "Get changelog version and content with i18n"},
+    {"name": "GET /static/* (mount)", "file": "web/app.py", "line": 124, "description": "Static file serving from web/static/"}
+  ],
+  "dependencies": [
+    {
+      "name": "fastapi",
+      "type": "external",
+      "used_in": ["web/app.py", "web/auth.py", "web/websocket.py"],
+      "imports": "FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, RedirectResponse, FileResponse, StaticFiles"
+    },
+    {
+      "name": "websockets",
+      "type": "external",
+      "used_in": ["web/websocket.py"],
+      "imports": "websockets.connect (lazy import inside WebChannelBridge.ensure_connected)"
+    },
+    {
+      "name": "uvicorn",
+      "type": "external",
+      "used_in": ["web/app.py"],
+      "imports": "uvicorn (conditional import in __main__ block, line 321)"
+    },
+    {
+      "name": "autoservice.plugin_loader",
+      "type": "internal",
+      "used_in": ["web/app.py"],
+      "imports": "discover (lazy import in lifespan, line 91)"
+    },
+    {
+      "name": "web.auth",
+      "type": "internal",
+      "used_in": ["web/app.py", "web/websocket.py"],
+      "imports": "auth module (configure, load_auth, valid_token, get_code_for_token, touch_token, idle_purge_loop, admin_new_code, admin_batch_codes, admin_list_codes, auth_verify, auth_logout)"
+    },
+    {
+      "name": "web.plugin_kb",
+      "type": "internal",
+      "used_in": ["web/app.py"],
+      "imports": "plugin_kb module (configure, get_kb_search, get_route_query)"
+    },
+    {
+      "name": "web.session_persistence",
+      "type": "internal",
+      "used_in": ["web/app.py", "web/websocket.py"],
+      "imports": "sessions module (configure, session_dir_for_code, new_web_session_id, save_session_data, load_session_data)"
+    },
+    {
+      "name": "web.websocket",
+      "type": "internal",
+      "used_in": ["web/app.py"],
+      "imports": "ws_handlers module (configure, ws_generic, ws_chat)"
+    },
+    {
+      "name": "marked.js",
+      "type": "frontend_lib",
+      "used_in": ["web/static/cinnox.html"],
+      "imports": "Minified JS library loaded via script tag for markdown rendering"
+    }
+  ],
+  "test_results": {
+    "command": "pytest tests/test_web_relay.py -v",
+    "note": "2 async tests exist: test_web_bridge_connects_and_registers (verifies WebChannelBridge registration with mock channel-server) and test_web_bridge_demuxes_replies (verifies chat_id-based message demultiplexing). Tests use websockets library to create mock servers.",
+    "test_file": "tests/test_web_relay.py",
+    "test_count": 2
+  },
+  "user_flows": [
+    {
+      "name": "Access Code Login",
+      "steps": [
+        "User navigates to / which redirects to /login (app.py:137)",
+        "login.html renders access code input form (login.html:1)",
+        "User enters 8-char code, clicks Continue (login.html:233 verify())",
+        "Frontend POSTs to /auth/verify with code (auth.py:245)",
+        "Server validates code, checks exclusive lock, generates session token (auth.py:245-277)",
+        "On success, frontend stores token in sessionStorage and redirects to /chat (login.html:252-256)",
+        "On HTTP 409 (code in use), frontend shows in-use banner with remaining minutes (login.html:257-260)"
+      ],
+      "entry_point": "web/app.py:137"
+    },
+    {
+      "name": "Authenticated Chat Session",
+      "steps": [
+        "GET /chat serves cinnox.html from plugin or built-in static (app.py:147)",
+        "cinnox.html checks sessionStorage for token, redirects to /login if missing (cinnox.html:898)",
+        "Frontend opens WebSocket to /ws/cinnox (cinnox.html:1266 connect())",
+        "ws_chat handler accepts connection, awaits first message with token (websocket.py:143-155)",
+        "Server validates token, initializes session state, sends 'ready' message (websocket.py:170-188)",
+        "Server connects to channel-server via WebChannelBridge singleton (websocket.py:191-199)",
+        "Three concurrent tasks run: browser_to_server, server_to_browser, heartbeat (websocket.py:303-311)",
+        "User sends message -> browser_to_server forwards to channel-server (websocket.py:253-258)",
+        "Channel-server reply arrives -> server_to_browser sends bot_text_delta + done to browser (websocket.py:260-281)",
+        "Frontend renders streaming bot response with markdown (cinnox.html:1398-1418)",
+        "Frontend updates sidebar: customer type, lead info, KB stats (cinnox.html:1519-1522)"
+      ],
+      "entry_point": "web/websocket.py:143"
+    },
+    {
+      "name": "Session Resume",
+      "steps": [
+        "User clicks session in sidebar history list (cinnox.html:1876)",
+        "Frontend fetches GET /api/sessions/{id} to show detail modal (cinnox.html:1884)",
+        "User clicks Resume button in modal (cinnox.html:1926 resumeSession())",
+        "Frontend sends resume_session message with web_session_id over WebSocket (cinnox.html:1935)",
+        "Server loads old session data via session_persistence.load_session_data (websocket.py:221-222)",
+        "Server sends session_resumed with history, mode, customer_type, agent state (websocket.py:226-238)",
+        "Frontend replays conversation history and restores sidebar state (cinnox.html:1316-1358)"
+      ],
+      "entry_point": "web/static/cinnox.html:1926"
+    },
+    {
+      "name": "End Session and Logout",
+      "steps": [
+        "User clicks End Session button (cinnox.html:1646 endSession())",
+        "Frontend sends end_session message over WebSocket (cinnox.html:1648)",
+        "Server sets resolution to 'resolved', saves session, sends session_ended (websocket.py:213-217)",
+        "Frontend disables input, shows 'session ended' message (cinnox.html:1537-1540)",
+        "User clicks Exit button (cinnox.html:1654 logout())",
+        "Frontend POSTs to /auth/logout to release code lock (auth.py:280-285)",
+        "Frontend clears sessionStorage, redirects to /login (cinnox.html:1660-1661)"
+      ],
+      "entry_point": "web/static/cinnox.html:1646"
+    },
+    {
+      "name": "KB Search (HTTP API)",
+      "steps": [
+        "Client calls GET /api/kb_search?query=...&top_k=10 (app.py:181)",
+        "plugin_kb.get_kb_search() lazy-loads KB search module from configured paths (plugin_kb.py:37-48)",
+        "Search results filtered and returned as JSON array with source_name, section, content, score (app.py:193-201)"
+      ],
+      "entry_point": "web/app.py:181"
+    },
+    {
+      "name": "Admin Code Management",
+      "steps": [
+        "Admin calls GET /admin/new-code?key=ADMIN_KEY to generate single code (auth.py:162)",
+        "Admin calls GET /admin/batch-codes?key=ADMIN_KEY&count=5 to batch generate codes (auth.py:190)",
+        "Admin calls GET /admin/codes?key=ADMIN_KEY to list all codes with status (auth.py:228)",
+        "All endpoints require ADMIN_KEY query parameter for authorization"
+      ],
+      "entry_point": "web/auth.py:162"
+    },
+    {
+      "name": "Mode Switching (Sales/Service)",
+      "steps": [
+        "User clicks Sales AI or Support AI tab in header (cinnox.html:747-748)",
+        "switchMode() checks if AI is responding (blocks if so) (cinnox.html:1163-1170)",
+        "Closes existing WebSocket, resets chat and sidebar (cinnox.html:1174-1208)",
+        "Calls connect() to establish new WebSocket with selected mode (cinnox.html:1210)",
+        "Server receives mode in auth message, initializes session with that mode (websocket.py:165-167)"
+      ],
+      "entry_point": "web/static/cinnox.html:1163"
+    }
+  ],
+  "architecture_notes": {
+    "pattern": "Module-level configuration via configure() functions called from app.py at import time",
+    "multiplexing": "All browser WebSocket sessions are multiplexed over a single WebSocket connection to channel-server via WebChannelBridge singleton (websocket.py:35). Each browser gets a unique chat_id='web_{session_id}' and replies are demuxed by chat_id.",
+    "auth_model": "Access code -> session token flow with exclusive lock (one active session per code). Idle timeout purging runs in background asyncio task.",
+    "persistence": "Session data persisted as JSON files in per-code subdirectories under .autoservice/database/sessions/. Auth state persisted to .autoservice/database/auth_store.json.",
+    "plugin_integration": "app.py discovers plugins via autoservice.plugin_loader.discover() and mounts their HTTP routes. Chat page (GET /chat) checks plugin static dirs for chat.html before falling back to built-in.",
+    "i18n": "Full English/Chinese localization in both login.html and cinnox.html using data-i18n attributes and dictionary lookup"
+  }
+}

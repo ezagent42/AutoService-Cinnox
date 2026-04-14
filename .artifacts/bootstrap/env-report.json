@@ -1,0 +1,98 @@
+{
+  "project_root": "D:\\Work\\h2os.cloud\\AutoService-new",
+  "checks": [
+    {
+      "name": "python",
+      "status": "ready",
+      "version": "Python 3.11.0",
+      "optional": false,
+      "install_hint": ""
+    },
+    {
+      "name": "node",
+      "status": "ready",
+      "version": "v22.18.0",
+      "optional": true,
+      "install_hint": ""
+    },
+    {
+      "name": "uv",
+      "status": "ready",
+      "version": "uv 0.10.7 (08ab1a344 2026-02-27)",
+      "optional": true,
+      "install_hint": ""
+    },
+    {
+      "name": "pip",
+      "status": "ready",
+      "version": "pip 23.3.2 from C:\\Python311\\Lib\\site-packages\\pip (python 3.11)",
+      "optional": true,
+      "install_hint": ""
+    },
+    {
+      "name": "git",
+      "status": "ready",
+      "version": "git version 2.40.1.windows.1",
+      "optional": false,
+      "install_hint": ""
+    },
+    {
+      "name": "pytest",
+      "status": "ready",
+      "version": "C:\\Python311\\python.exe: No module named pytest",
+      "optional": true,
+      "install_hint": ""
+    },
+    {
+      "name": "make",
+      "status": "ready",
+      "version": "GNU Make 4.4.1",
+      "optional": true,
+      "install_hint": ""
+    },
+    {
+      "name": "service (in tests/test_web_relay.py) (port 19997)",
+      "status": "missing",
+      "version": "not listening on 19997",
+      "optional": true
+    },
+    {
+      "name": "service (in tests/test_channel_client.py) (port 19998)",
+      "status": "missing",
+      "version": "not listening on 19998",
+      "optional": true
+    }
+  ],
+  "detected_ports": {
+    "19998": {
+      "name": "service (in tests/test_channel_client.py)",
+      "source": "tests/test_channel_client.py"
+    },
+    "19997": {
+      "name": "service (in tests/test_web_relay.py)",
+      "source": "tests/test_web_relay.py"
+    }
+  },
+  "project_dependencies": [
+    "anthropic",
+    "beautifulsoup4",
+    "claude-agent-sdk",
+    "fastapi",
+    "httpx",
+    "lark-oapi",
+    "mcp",
+    "openpyxl",
+    "pypdf",
+    "python-docx",
+    "uvicorn[standard]",
+    "pyyaml",
+    "anyio",
+    "websockets"
+  ],
+  "summary": {
+    "ready": 7,
+    "missing_required": 0,
+    "missing_optional": 2,
+    "total": 9
+  }
+}

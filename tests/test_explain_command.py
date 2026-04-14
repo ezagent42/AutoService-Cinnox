@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from feishu.channel_server import ChannelServer
+from channels.feishu.channel_server import ChannelServer
 
 
 @pytest.fixture
@@ -119,7 +119,7 @@ class TestExplainRoute:
 
     def test_explain_serves_existing_file(self):
         from fastapi.testclient import TestClient
-        from web.app import app
+        from channels.web.app import app
 
         explain_dir = Path(__file__).parent.parent / ".autoservice" / "explain"
         explain_dir.mkdir(parents=True, exist_ok=True)
@@ -135,7 +135,7 @@ class TestExplainRoute:
 
     def test_explain_404_for_missing(self):
         from fastapi.testclient import TestClient
-        from web.app import app
+        from channels.web.app import app
 
         client = TestClient(app)
         resp = client.get("/explain/nonexistent.html")
