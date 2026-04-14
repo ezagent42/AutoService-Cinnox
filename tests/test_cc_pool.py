@@ -648,7 +648,8 @@ class TestStickyReleaseCallback:
 
 class TestMcpServerOverride:
     @pytest.mark.asyncio
-    async def test_autoservice_channel_disabled_when_mcp_servers_provided(self):
+    async def test_setting_sources_skips_project(self):
+        """Pool instances use setting_sources=["user"] to skip .mcp.json."""
         from autoservice.cc_pool import create_cc_client, PoolConfig
         captured = {}
         with patch("autoservice.cc_pool.ClaudeSDKClient") as MockSDK, \
@@ -657,6 +658,7 @@ class TestMcpServerOverride:
             mock_client.connect = AsyncMock()
             MockClient.return_value = mock_client
             def capture(options):
+                captured["setting_sources"] = options.setting_sources
                 captured["mcp_servers"] = options.mcp_servers
                 return MagicMock()
             MockSDK.side_effect = capture
@@ -664,11 +666,15 @@ class TestMcpServerOverride:
                 PoolConfig(),
                 mcp_servers={"channel-tools": {"type": "sdk", "name": "ct"}},
             )
-            assert "autoservice-channel" in captured["mcp_servers"]
+            # setting_sources should skip "project" (which loads .mcp.json)
+            assert captured["setting_sources"] == ["user"]
+            # mcp_servers should only contain what was explicitly passed
             assert "channel-tools" in captured["mcp_servers"]
+            assert "autoservice-channel" not in captured["mcp_servers"]
 
     @pytest.mark.asyncio
-    async def test_no_override_when_no_mcp_servers(self):
+    async def test_plugins_loads_claude_dir(self):
+        """Pool instances load .claude/ as plugin for skills access."""
         from autoservice.cc_pool import create_cc_client, PoolConfig
         captured = {}
         with patch("autoservice.cc_pool.ClaudeSDKClient") as MockSDK, \
@@ -677,9 +683,10 @@ class TestMcpServerOverride:
             mock_client.connect = AsyncMock()
             MockClient.return_value = mock_client
             def capture(options):
-                captured["mcp_servers"] = options.mcp_servers
+                captured["plugins"] = options.plugins
                 return MagicMock()
             MockSDK.side_effect = capture
             await create_cc_client(PoolConfig())
-            # No mcp_servers provided, no override
-            assert captured.get("mcp_servers") == {}  # default empty dict from ClaudeAgentOptions
+            # Should load .claude/ directory as plugin
+            assert captured["plugins"] is not None
+            assert any(".claude" in p.get("path", "") for p in captured["plugins"])
